@@ -1,4 +1,5 @@
 from sklearn.pipeline import Pipeline
+from imblearn.pipeline import Pipeline
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score,balanced_accuracy_score,f1_score,fbeta_score,roc_auc_score,roc_curve,precision_score,recall_score, precision_recall_curve, PrecisionRecallDisplay,average_precision_score
 import matplotlib.pyplot as plt
