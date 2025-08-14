@@ -11,7 +11,7 @@ if str(project_root) not in sys.path:
 
 @st.cache_resource
 def load_model():
-    file_path = '../models/log_pipeline_20250807.pkl'
+    file_path = '../models/log_pipeline_20250809.pkl'
     with open(file_path, 'rb') as file:
         model = pickle.load(file)
     return model
