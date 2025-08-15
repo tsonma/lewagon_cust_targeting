@@ -12,3 +12,5 @@ nbdime
 tensorflow
 lazypredict
 ipywidgets
+openai
+python-dotenv
