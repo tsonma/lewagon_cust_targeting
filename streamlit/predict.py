@@ -135,7 +135,6 @@ def single_client_ui(model, threshold):
 
 # ---------- UI for Bulk CSV Prediction ----------
 
-
 def bulk_csv_ui(model, threshold):
     st.write("### 📂 Upload CSV for Bulk Prediction")
     uploaded_file = st.file_uploader("Upload a CSV file", type=["csv"])
@@ -162,15 +161,15 @@ def bulk_csv_ui(model, threshold):
         df_display["Prediction"] = [color_prediction(pred) for pred in df_display["Prediction"]]
         df_display["Probability"] = df_display["Probability"].apply(lambda p: f"{p:.2%}")
 
-        # Display
-        st.write("### Results")
+        # Display results
+        st.write("### 📊 Results")
         st.write(df_display[[
             "Name", "Phone", "age", "job", "marital", "education", "balance", "housing", "loan",
             "Prediction", "Probability"
         ]])
 
-        # Download
-        csv_download = X.to_csv(index=False).encode('utf-8')
+        # Download button
+        csv_download = X[["Name", "Phone", "age", "job", "marital", "education", "balance", "housing", "loan", "Prediction", "Probability"]].to_csv(index=False).encode('utf-8')
 
         st.download_button(
             label="📥 Download Predictions as CSV",
@@ -179,6 +178,96 @@ def bulk_csv_ui(model, threshold):
             mime="text/csv"
         )
 
+        # --- Optional ChatGPT Integration for Script Generation ---
+        if st.button("🤖 Generate Personalized Call Scripts", type="primary", use_container_width=True):
+            # Add custom CSS for green button
+            st.markdown("""
+            <style>
+            div.stButton > button:first-child {
+                background-color: #28a745;
+                color: white;
+                border-color: #28a745;
+            }
+            div.stButton > button:first-child:hover {
+                background-color: #218838;
+                border-color: #1e7e34;
+            }
+            </style>
+            """, unsafe_allow_html=True)
+
+            st.write("### 🤖 Generating personalized call scripts...")
+            scripts = []
+
+            system_prompt = """
+            You are a friendly and professional bank representative from 'LeWagon',
+            specialized in investments, with a genuine desire to help clients achieve
+            their financial goals. You are empathetic, trustworthy, and warm in your communication.
+            Use light, friendly humor that's appropriate and respectful - think gentle wit rather than
+            anything that could be perceived as making fun of the customer. Keep the tone positive,
+            encouraging, and supportive throughout.
+            """
+
+            # Generate script for ALL customers
+            progress_bar = st.progress(0)
+
+            for i, (idx, row) in enumerate(X.iterrows()):
+                # Create customer data string for this specific row (excluding sensitive balance info)
+                customer_data = row[["age", "job", "marital", "education", "housing", "loan"]].to_dict()
+                customer_str = ", ".join([f"{k}: {v}" for k, v in customer_data.items()])
+
+                user_prompt = f"""
+                Here is the customer data for {row['Name']}:
+                {customer_str}
+
+                Please generate a short personalized call script (2 paragraphs) for this client,
+                highlighting their situation and suggesting why an investment opportunity might be beneficial for them.
+                Use gentle, friendly humor that's warm and respectful - avoid anything that could sound
+                condescending or make light of their financial situation. The humor should be lighthearted
+                and build rapport, not critique the customer. Keep it professional yet personable.
+                Use the customer's name: {row['Name']}.
+
+                IMPORTANT: Do not mention account balances, specific dollar amounts, or financial details.
+                Focus on their life situation, career, and general financial wellness.
+                """
+
+                try:
+                    response = openai.chat.completions.create(
+                        model="gpt-4o-mini",  # Fixed model name
+                        messages=[
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_prompt}
+                        ],
+                        max_tokens=300,
+                        temperature=0.7  # Add some creativity variation
+                    )
+                    script = response.choices[0].message.content
+                    scripts.append(script)
+
+                except Exception as e:
+                    st.error(f"Error generating script for {row['Name']}: {e}")
+                    scripts.append(f"Script generation failed: {str(e)}")
+
+                # Update progress bar
+                progress_bar.progress((i + 1) / len(X))
+
+            # Add scripts to ALL customers
+            X["Script"] = scripts
+
+            # Show scripts for top 3 prospects only on Streamlit
+            st.write("#### 📞 Personalized Call Scripts (Top 3 Prospects)")
+            top_3_display = df_display.head(3)
+            for i, (idx, row) in enumerate(top_3_display.iterrows()):
+                with st.expander(f"Script for {row['Name']} ({row['Prediction']} - {row['Probability']})"):
+                    st.write(X.loc[idx, "Script"])
+
+            # Download button with scripts for ALL customers
+            csv_download_with_scripts = X.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="📥 Download All Predictions with Scripts as CSV",
+                data=csv_download_with_scripts,
+                file_name="all_predictions_with_scripts.csv",
+                mime="text/csv"
+            )
 
 # ---------- Main Prediction Page with Tabs ----------
 
