@@ -22,11 +22,11 @@ def load_model():
     return model
 
 def color_prediction(pred):
-    """Return HTML span with color for prediction."""
+    """Return only check or cross depending on prediction."""
     if pred == "Will Invest":
-        return f"<span style='color:green; font-weight:bold;'>✅ {pred}</span>"
+        return "✅"
     else:
-        return f"<span style='color:red; font-weight:bold;'>❌ {pred}</span>"
+        return "❌"
 
 # ---------- UI for Single Client Prediction ----------
 def single_client_ui(model, threshold):
@@ -111,6 +111,9 @@ def bulk_csv_ui(model, threshold):
 
         st.write("### Results")
         st.write(df_display.to_html(escape=False), unsafe_allow_html=True)
+        # st.write(df_display.to_html(escape=False), unsafe_allow_html=True)
+        st.write(df_display[["age", "job", "marital", "education", "balance", "housing", "loan", "Prediction", "Probability"]])
+
 
         csv_download = df.to_csv(index=False).encode('utf-8')
         st.download_button(
