@@ -8,7 +8,7 @@ import os
 import openai
 from dotenv import load_dotenv
 from src.getdata_utils import load_data
-
+from faker import Faker
 
 load_dotenv()
 openai.api_key = os.getenv("openai_api_key")  # store your key in env var
@@ -137,11 +137,14 @@ def single_client_ui(model, threshold):
 
 
 # ---------- UI for Bulk CSV Prediction ----------
+
+
 def bulk_csv_ui(model, threshold):
     st.write("### 📂 Upload CSV for Bulk Prediction")
     uploaded_file = st.file_uploader("Upload a CSV file", type=["csv"])
     if uploaded_file:
 
+        # Load data
         X, y = load_data(filepath=uploaded_file)
         probabilities = model.predict_proba(X)[:, 1]
         predictions = ["Will Invest" if p >= threshold else "Will Not Invest" for p in probabilities]
@@ -149,17 +152,27 @@ def bulk_csv_ui(model, threshold):
         X["Prediction"] = predictions
         X["Probability"] = probabilities  # keep numeric for sorting
 
+        # --- Generate random names & phone numbers ---
+        fake = Faker()
+        X["Name"] = [fake.name() for _ in range(len(X))]
+        X["Phone"] = [f"(514)-{fake.random_int(100, 999)}-{fake.random_int(1000, 9999)}" for _ in range(len(X))]
+
         # Sort descending by probability
         X.sort_values(by="Probability", ascending=False, inplace=True)
 
-        # Now format the probability for display
+        # Format the probability for display
         df_display = X.copy()
         df_display["Prediction"] = [color_prediction(pred) for pred in df_display["Prediction"]]
         df_display["Probability"] = df_display["Probability"].apply(lambda p: f"{p:.2%}")
 
+        # Display
         st.write("### Results")
-        st.write(df_display[["age", "job", "marital", "education", "balance", "housing", "loan", "Prediction", "Probability"]])
+        st.write(df_display[[
+            "Name", "Phone", "age", "job", "marital", "education", "balance", "housing", "loan",
+            "Prediction", "Probability"
+        ]])
 
+        # Download
         csv_download = X.to_csv(index=False).encode('utf-8')
 
         st.download_button(
