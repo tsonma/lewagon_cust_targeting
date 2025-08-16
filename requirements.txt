@@ -15,3 +15,4 @@ ipywidgets
 openai
 python-dotenv
 plotly
+faker
