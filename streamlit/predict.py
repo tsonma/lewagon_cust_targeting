@@ -5,8 +5,12 @@ import plotly.express as px
 import pickle
 import pandas as pd
 import os
-from dotenv import load_dotenv
 import openai
+from dotenv import load_dotenv
+
+load_dotenv()
+openai.api_key = os.getenv("openai_api_key")  # store your key in env var
+
 
 # Add project root to sys.path
 project_root = pathlib.Path(__file__).parent.parent.resolve()
@@ -93,6 +97,42 @@ def single_client_ui(model, threshold):
 
         st.info(f"Probability of Investing: {proba:.2%}")
         st.info(f"Threshold used: {threshold:.2%}")
+
+ # ---- ChatGPT Integration ----
+        df_str = input_data.to_csv(index=False)
+
+        system_prompt = """
+        You are a highly experienced and successful bank representative,
+        specialized in investments, with a proven track record of helping clients achieve
+        their financial goals while always acting in their best interest.
+        You are empathetic, trustworthy, and persuasive in your communication. The name of our bank is 'LeWagon'.
+        """
+
+        user_prompt = f"""
+        Here is the customer data:
+        {df_str}
+
+        Please generate a short personalized call script (2 paragraphs) for this client,
+        highlighting their situation and suggesting why an investment is a good fit.
+        Add a touch of humor to keep it engaging. Can you please assign a random name to the customer?
+        """
+
+        try:
+            response = openai.chat.completions.create(
+                model="gpt-4.1-mini",  # faster + cheaper
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                max_tokens=300
+            )
+            script = response.choices[0].message.content
+            st.subheader("📞 Personalized Call Script")
+            st.write(script)
+
+        except Exception as e:
+            st.error(f"Error generating script: {e}")
+
 
 # ---------- UI for Bulk CSV Prediction ----------
 def bulk_csv_ui(model, threshold):
