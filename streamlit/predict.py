@@ -4,7 +4,9 @@ import streamlit as st
 import plotly.express as px
 import pickle
 import pandas as pd
-from src.getdata_utils import load_data
+import os
+from dotenv import load_dotenv
+import openai
 
 # Add project root to sys.path
 project_root = pathlib.Path(__file__).parent.parent.resolve()
@@ -97,23 +99,20 @@ def bulk_csv_ui(model, threshold):
     st.write("### 📂 Upload CSV for Bulk Prediction")
     uploaded_file = st.file_uploader("Upload a CSV file", type=["csv"])
     if uploaded_file:
-        # df = pd.read_csv(uploaded_file)
-        X, y = load_data(filepath=uploaded_file)
-        probabilities = model.predict_proba(X)[:, 1]
+        df = pd.read_csv(uploaded_file)
+        probabilities = model.predict_proba(df)[:, 1]
         predictions = ["Will Invest" if p >= threshold else "Will Not Invest" for p in probabilities]
 
-        X["Prediction"] = predictions
-        X["Probability"] = [f"{p:.2%}" for p in probabilities]
+        df["Prediction"] = predictions
+        df["Probability"] = [f"{p:.2%}" for p in probabilities]
 
-        df_display = X.copy()
-        df_display["Prediction"] = [color_prediction(pred) for pred in X["Prediction"]]
-        df_display.sort_values(by="Probability", ascending=False, inplace=True)
+        df_display = df.copy()
+        df_display["Prediction"] = [color_prediction(pred) for pred in df["Prediction"]]
 
         st.write("### Results")
-        # st.write(df_display.to_html(escape=False), unsafe_allow_html=True)
-        st.write(df_display)
+        st.write(df_display.to_html(escape=False), unsafe_allow_html=True)
 
-        csv_download = X.to_csv(index=False).encode('utf-8')
+        csv_download = df.to_csv(index=False).encode('utf-8')
         st.download_button(
             label="📥 Download Predictions as CSV",
             data=csv_download,
@@ -124,7 +123,6 @@ def bulk_csv_ui(model, threshold):
 # ---------- Main Prediction Page ----------
 def show_prediction():
     st.title("Customer Investment Prediction")
-    tabs = st.tabs(["Overview", "Explore", "Insights", "Settings", "About"])
     model = load_model()
 
     # Single slider for threshold used across both single client & bulk
