@@ -29,10 +29,7 @@ def load_model():
 
 def color_prediction(pred):
     """Return only check or cross depending on prediction."""
-    if pred == "Will Invest":
-        return "✅"
-    else:
-        return "❌"
+    return "✅" if pred == "Will Invest" else "❌"
 
 # ---------- UI for Single Client Prediction ----------
 def single_client_ui(model, threshold):
@@ -184,19 +181,31 @@ def bulk_csv_ui(model, threshold):
 
 
 # ---------- Main Prediction Page with Tabs ----------
+
 def show_prediction():
     st.title("Customer Investment Prediction")
 
     model = load_model()
 
-    # Shared threshold slider
-    threshold = st.slider("Adjust investment threshold", 0.0, 1.0, 0.5, 0.01)
+    # --- Session state to remember selected tab ---
+    if "selected_tab" not in st.session_state:
+        st.session_state.selected_tab = 0  # default to first tab
 
-    # Tabs for Single Customer vs Bulk Upload
-    tab1, tab2 = st.tabs(["✏️ Single Customer", "📂 Bulk CSV Upload"])
+    # Tab switcher (emulates tabs but preserves selection on rerun)
+    tab_labels = ["✏️ Single Customer", "📂 Bulk CSV Upload"]
+    st.session_state.selected_tab = st.radio(
+        "Choose view:",
+        range(len(tab_labels)),
+        format_func=lambda i: tab_labels[i],
+        index=st.session_state.selected_tab
+    )
 
-    with tab1:
+    # Show content based on selected tab
+    if st.session_state.selected_tab == 0:
+        # Threshold slider only for this tab
+        threshold = st.slider("Adjust investment threshold", 0.0, 1.0, 0.5, 0.01)
         single_client_ui(model, threshold)
-
-    with tab2:
+    else:
+        # Threshold slider only for bulk CSV
+        threshold = st.slider("Adjust investment threshold", 0.0, 1.0, 0.5, 0.01)
         bulk_csv_ui(model, threshold)
