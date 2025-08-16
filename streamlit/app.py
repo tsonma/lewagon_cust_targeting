@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from streamliteda import show_eda
+import plotly.express as px
 from pathlib import Path
 from predict import show_prediction
 @st.cache_data

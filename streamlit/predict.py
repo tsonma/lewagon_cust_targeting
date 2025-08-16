@@ -1,6 +1,7 @@
 import sys
 import pathlib
 import streamlit as st
+import plotly.express as px
 import pickle
 import pandas as pd
 
