@@ -11,7 +11,7 @@ def load_data(filepath="../data/bank-full.csv"):
         X (pd.DataFrame): Feature set with 'y' and 'duration' dropped.
         y (pd.Series): Binary target variable.
     """
-    df_bank = pd.read_csv(filepath, sep=';', header=0)
+    df_bank = pd.read_csv(filepath, sep=None, engine="python", header=0)
     X = df_bank.drop(['y', 'duration'], axis=1)
     y = df_bank['y'].map({'no': 0, 'yes': 1})
     return X, y
