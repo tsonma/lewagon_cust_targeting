@@ -7,6 +7,8 @@ import pandas as pd
 import os
 import openai
 from dotenv import load_dotenv
+from src.getdata_utils import load_data
+
 
 load_dotenv()
 openai.api_key = os.getenv("openai_api_key")  # store your key in env var
@@ -144,14 +146,18 @@ def bulk_csv_ui(model, threshold):
         probabilities = model.predict_proba(X)[:, 1]
         predictions = ["Will Invest" if p >= threshold else "Will Not Invest" for p in probabilities]
 
-        df["Prediction"] = predictions
-        df["Probability"] = [f"{p:.2%}" for p in probabilities]
+        X["Prediction"] = predictions
+        X["Probability"] = probabilities  # keep numeric for sorting
 
-        df_display = df.copy()
-        df_display["Prediction"] = [color_prediction(pred) for pred in df["Prediction"]]
+        # Sort descending by probability
+        X.sort_values(by="Probability", ascending=False, inplace=True)
+
+        # Now format the probability for display
+        df_display = X.copy()
+        df_display["Prediction"] = [color_prediction(pred) for pred in df_display["Prediction"]]
+        df_display["Probability"] = df_display["Probability"].apply(lambda p: f"{p:.2%}")
 
         st.write("### Results")
-
         st.write(df_display[["age", "job", "marital", "education", "balance", "housing", "loan", "Prediction", "Probability"]])
 
         csv_download = X.to_csv(index=False).encode('utf-8')
@@ -162,6 +168,7 @@ def bulk_csv_ui(model, threshold):
             file_name="predictions.csv",
             mime="text/csv"
         )
+
 
 # ---------- Main Prediction Page with Tabs ----------
 def show_prediction():
