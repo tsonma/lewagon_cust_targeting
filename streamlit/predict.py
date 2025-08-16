@@ -99,8 +99,9 @@ def bulk_csv_ui(model, threshold):
     st.write("### 📂 Upload CSV for Bulk Prediction")
     uploaded_file = st.file_uploader("Upload a CSV file", type=["csv"])
     if uploaded_file:
-        df = pd.read_csv(uploaded_file)
-        probabilities = model.predict_proba(df)[:, 1]
+
+        X, y = load_data(filepath=uploaded_file)
+        probabilities = model.predict_proba(X)[:, 1]
         predictions = ["Will Invest" if p >= threshold else "Will Not Invest" for p in probabilities]
 
         df["Prediction"] = predictions
@@ -110,12 +111,11 @@ def bulk_csv_ui(model, threshold):
         df_display["Prediction"] = [color_prediction(pred) for pred in df["Prediction"]]
 
         st.write("### Results")
-        st.write(df_display.to_html(escape=False), unsafe_allow_html=True)
-        # st.write(df_display.to_html(escape=False), unsafe_allow_html=True)
+
         st.write(df_display[["age", "job", "marital", "education", "balance", "housing", "loan", "Prediction", "Probability"]])
 
+        csv_download = X.to_csv(index=False).encode('utf-8')
 
-        csv_download = df.to_csv(index=False).encode('utf-8')
         st.download_button(
             label="📥 Download Predictions as CSV",
             data=csv_download,
@@ -123,16 +123,20 @@ def bulk_csv_ui(model, threshold):
             mime="text/csv"
         )
 
-# ---------- Main Prediction Page ----------
+# ---------- Main Prediction Page with Tabs ----------
 def show_prediction():
     st.title("Customer Investment Prediction")
+
     model = load_model()
 
-    # Single slider for threshold used across both single client & bulk
+    # Shared threshold slider
     threshold = st.slider("Adjust investment threshold", 0.0, 1.0, 0.5, 0.01)
 
-    uploaded_file = st.file_uploader("Upload CSV for Bulk Prediction", type=["csv"])
-    if uploaded_file:
-        bulk_csv_ui(model, threshold)
-    else:
+    # Tabs for Single Customer vs Bulk Upload
+    tab1, tab2 = st.tabs(["✏️ Single Customer", "📂 Bulk CSV Upload"])
+
+    with tab1:
         single_client_ui(model, threshold)
+
+    with tab2:
+        bulk_csv_ui(model, threshold)
