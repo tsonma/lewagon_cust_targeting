@@ -4,7 +4,9 @@ import streamlit as st
 import plotly.express as px
 import pickle
 import pandas as pd
-from src.getdata_utils import load_data
+import os
+from dotenv import load_dotenv
+import openai
 
 # Add project root to sys.path
 project_root = pathlib.Path(__file__).parent.parent.resolve()
@@ -97,21 +99,23 @@ def bulk_csv_ui(model, threshold):
     st.write("### 📂 Upload CSV for Bulk Prediction")
     uploaded_file = st.file_uploader("Upload a CSV file", type=["csv"])
     if uploaded_file:
+
         X, y = load_data(filepath=uploaded_file)
         probabilities = model.predict_proba(X)[:, 1]
         predictions = ["Will Invest" if p >= threshold else "Will Not Invest" for p in probabilities]
 
-        X["Prediction"] = predictions
-        X["Probability"] = [f"{p:.2%}" for p in probabilities]
+        df["Prediction"] = predictions
+        df["Probability"] = [f"{p:.2%}" for p in probabilities]
 
-        df_display = X.copy()
-        df_display["Prediction"] = [color_prediction(pred) for pred in X["Prediction"]]
-        df_display.sort_values(by="Probability", ascending=False, inplace=True)
+        df_display = df.copy()
+        df_display["Prediction"] = [color_prediction(pred) for pred in df["Prediction"]]
 
         st.write("### Results")
+
         st.write(df_display[["age", "job", "marital", "education", "balance", "housing", "loan", "Prediction", "Probability"]])
 
         csv_download = X.to_csv(index=False).encode('utf-8')
+
         st.download_button(
             label="📥 Download Predictions as CSV",
             data=csv_download,

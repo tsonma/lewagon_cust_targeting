@@ -14,3 +14,4 @@ lazypredict
 ipywidgets
 openai
 python-dotenv
+plotly
