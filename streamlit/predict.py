@@ -90,9 +90,9 @@ def single_client_ui(model, threshold):
         proba = model.predict_proba(input_data)[0][1]
 
         if proba >= threshold:
-            st.markdown("<h3 style='color:green;'>✅ Will Invest</h3>", unsafe_allow_html=True)
+            st.markdown("<h3 style='color:green;'>✅ Above Threshold</h3>", unsafe_allow_html=True)
         else:
-            st.markdown("<h3 style='color:red;'>❌ Will Not Invest</h3>", unsafe_allow_html=True)
+            st.markdown("<h3 style='color:red;'>❌ Below Threshold</h3>", unsafe_allow_html=True)
 
         st.info(f"Probability of Investing: {proba:.2%}")
         st.info(f"Threshold used: {threshold:.2%}")
@@ -112,12 +112,12 @@ def single_client_ui(model, threshold):
         {df_str}
 
         Please generate a short personalized call script (2 paragraphs) for this client,
-        highlighting their situation and suggesting why an investment is a good fit.Can you please assign a random name to the customer?
+        highlighting their situation and suggesting why an investment is a good fit?
         """
 
         try:
             response = openai.chat.completions.create(
-                model="gpt-4.1-mini",  # faster + cheaper
+                model="gpt-4.1-mini",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
@@ -125,7 +125,7 @@ def single_client_ui(model, threshold):
                 max_tokens=300
             )
             script = response.choices[0].message.content
-            st.subheader("📞 Personalized Call Script")
+            st.subheader("Personalized Script")
             st.write(script)
 
         except Exception as e:
@@ -146,10 +146,20 @@ def bulk_csv_ui(model, threshold):
         X["Prediction"] = predictions
         X["Probability"] = probabilities  # keep numeric for sorting
 
-        # --- Generate random names & phone numbers ---
-        fake = Faker()
-        X["Name"] = [fake.name() for _ in range(len(X))]
-        X["Phone"] = [f"(514)-{fake.random_int(100, 999)}-{fake.random_int(1000, 9999)}" for _ in range(len(X))]
+        # --- Generate random names & phone numbers (CACHED) ---
+        # Create a unique key based on the data to ensure consistency
+        data_hash = hash(str(X.index.tolist() + X.columns.tolist()))
+
+        # Check if we already have cached names for this dataset
+        if f"names_{data_hash}" not in st.session_state:
+            fake = Faker()
+            fake.seed_instance(42)  # Set seed for reproducibility
+            st.session_state[f"names_{data_hash}"] = [fake.name() for _ in range(len(X))]
+            st.session_state[f"phones_{data_hash}"] = [f"(514)-{fake.random_int(100, 999)}-{fake.random_int(1000, 9999)}" for _ in range(len(X))]
+
+        # Use cached names and phone numbers
+        X["Name"] = st.session_state[f"names_{data_hash}"]
+        X["Phone"] = st.session_state[f"phones_{data_hash}"]
 
         # Sort descending by probability
         X.sort_values(by="Probability", ascending=False, inplace=True)
@@ -192,7 +202,7 @@ def bulk_csv_ui(model, threshold):
         df_display["Probability"] = df_display["Probability"].apply(lambda p: f"{p:.2%}")
 
         # Display results
-        st.write("### 📊 Results")
+        st.write("### 🎯 Results")
         st.dataframe(
             df_display[["Name", "Phone", "Prediction", "Probability"]],
             hide_index=True
@@ -202,14 +212,14 @@ def bulk_csv_ui(model, threshold):
         csv_download = X[["Name", "Phone", "age", "job", "marital", "education", "balance", "housing", "loan", "Prediction", "Probability"]].to_csv(index=False).encode('utf-8')
 
         st.download_button(
-            label="📥 Download Predictions as CSV",
+            label="💾 Download Predictions",
             data=csv_download,
             file_name="predictions.csv",
             mime="text/csv"
         )
 
         # --- Optional ChatGPT Integration for Script Generation ---
-        if st.button("🤖 Generate Personalized Call Scripts", type="primary"):
+        if st.button(" Generate Personalized Scripts", type="primary"):
             # Add custom CSS for green button
             st.markdown("""
             <style>
@@ -225,66 +235,75 @@ def bulk_csv_ui(model, threshold):
             </style>
             """, unsafe_allow_html=True)
 
-            st.write("### 🤖 Generating personalized call scripts...")
-            scripts = []
+            # Cache scripts as well to avoid regenerating them
+            scripts_key = f"scripts_{data_hash}_{threshold}"
 
-            system_prompt = """
-            You are a friendly and professional bank representative from 'LeWagon',
-            specialized in investments, with a genuine desire to help clients achieve
-            their financial goals. You are empathetic, trustworthy, and warm in your communication.
-            Use light, friendly humor that's appropriate and respectful - think gentle wit rather than
-            anything that could be perceived as making fun of the customer. Keep the tone positive,
-            encouraging, and supportive throughout.
-            """
+            if scripts_key not in st.session_state:
+                st.write("### Generating Personalized Scripts...")
+                scripts = []
 
-            # Generate script for ALL customers
-            progress_bar = st.progress(0)
-
-            for i, (idx, row) in enumerate(X.iterrows()):
-                # Create customer data string for this specific row (excluding sensitive balance info)
-                customer_data = row[["age", "job", "marital", "education", "housing", "loan"]].to_dict()
-                customer_str = ", ".join([f"{k}: {v}" for k, v in customer_data.items()])
-
-                user_prompt = f"""
-                Here is the customer data for {row['Name']}:
-                {customer_str}
-
-                Please generate a short personalized call script (2 paragraphs) for this client,
-                highlighting their situation and suggesting why an investment opportunity might be beneficial for them.
-                Use gentle, friendly humor that's warm and respectful - avoid anything that could sound
-                condescending or make light of their financial situation. The humor should be lighthearted
-                and build rapport, not critique the customer. Keep it professional yet personable.
-                Use the customer's name: {row['Name']}.
-
-                IMPORTANT: Do not mention account balances, specific dollar amounts, or financial details.
-                Focus on their life situation, career, and general financial wellness.
+                system_prompt = """
+                You are a friendly and professional bank representative from 'LeWagon',
+                specialized in investments, with a genuine desire to help clients achieve
+                their financial goals. You are empathetic, trustworthy, and warm in your communication.
+                Use light, friendly humor that's appropriate and respectful - think gentle wit rather than
+                anything that could be perceived as making fun of the customer. Keep the tone positive,
+                encouraging, and supportive throughout.
                 """
 
-                try:
-                    response = openai.chat.completions.create(
-                        model="gpt-4o-mini",  # Fixed model name
-                        messages=[
-                            {"role": "system", "content": system_prompt},
-                            {"role": "user", "content": user_prompt}
-                        ],
-                        max_tokens=300,
-                        temperature=0.7  # Add some creativity variation
-                    )
-                    script = response.choices[0].message.content
-                    scripts.append(script)
+                # Generate script for ALL customers
+                progress_bar = st.progress(0)
 
-                except Exception as e:
-                    st.error(f"Error generating script for {row['Name']}: {e}")
-                    scripts.append(f"Script generation failed: {str(e)}")
+                for i, (idx, row) in enumerate(X.iterrows()):
+                    # Create customer data string for this specific row (excluding sensitive balance info)
+                    customer_data = row[["age", "job", "marital", "education", "housing", "loan"]].to_dict()
+                    customer_str = ", ".join([f"{k}: {v}" for k, v in customer_data.items()])
 
-                # Update progress bar
-                progress_bar.progress((i + 1) / len(X))
+                    user_prompt = f"""
+                    Here is the customer data for {row['Name']}:
+                    {customer_str}
+
+                    Please generate a short personalized call script (2 paragraphs) for this client,
+                    highlighting their situation and suggesting why an investment opportunity might be beneficial for them.
+                    Use gentle, friendly humor that's warm and respectful - avoid anything that could sound
+                    condescending or make light of their financial situation. The humor should be lighthearted
+                    and build rapport, not critique the customer. Keep it professional yet personable.
+                    Use the customer's name: {row['Name']}.
+
+                    IMPORTANT: Do not mention account balances, specific dollar amounts, or financial details.
+                    Focus on their life situation, career, and general financial wellness.
+                    """
+
+                    try:
+                        response = openai.chat.completions.create(
+                            model="gpt-4o-mini",  # Fixed model name
+                            messages=[
+                                {"role": "system", "content": system_prompt},
+                                {"role": "user", "content": user_prompt}
+                            ],
+                            max_tokens=300,
+                            temperature=0.7  # Add some creativity variation
+                        )
+                        script = response.choices[0].message.content
+                        scripts.append(script)
+
+                    except Exception as e:
+                        st.error(f"Error generating script for {row['Name']}: {e}")
+                        scripts.append(f"Script generation failed: {str(e)}")
+
+                    # Update progress bar
+                    progress_bar.progress((i + 1) / len(X))
+
+                # Cache the generated scripts
+                st.session_state[scripts_key] = scripts
+            else:
+                st.success("Using cached scripts!")
 
             # Add scripts to ALL customers
-            X["Script"] = scripts
+            X["Script"] = st.session_state[scripts_key]
 
             # Show scripts for top 3 prospects only on Streamlit
-            st.write("#### 📞 Personalized Call Scripts (Top 3 Prospects)")
+            st.write("#### Top 3 Prospects")
             top_3_display = df_display.head(3)
             for i, (idx, row) in enumerate(top_3_display.iterrows()):
                 with st.expander(f"Script for {row['Name']} ({row['Prediction']} - {row['Probability']})"):
@@ -293,11 +312,20 @@ def bulk_csv_ui(model, threshold):
             # Download button with scripts for ALL customers
             csv_download_with_scripts = X.to_csv(index=False).encode('utf-8')
             st.download_button(
-                label="📥 Download All Predictions with Scripts as CSV",
+                label="💾 Download ALL Predictions with Scripts",
                 data=csv_download_with_scripts,
                 file_name="all_predictions_with_scripts.csv",
                 mime="text/csv"
             )
+
+        # Optional: Add a button to clear cache if needed
+        if st.button("🗑️ Clear Cached Data"):
+            # Clear all cached data for this dataset
+            keys_to_remove = [key for key in st.session_state.keys() if str(data_hash) in key]
+            for key in keys_to_remove:
+                del st.session_state[key]
+            st.success("Cached data cleared! Refresh to generate new names.")
+            st.experimental_rerun()
 
 # ---------- Main Prediction Page with Tabs ----------
 
