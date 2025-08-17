@@ -112,8 +112,7 @@ def single_client_ui(model, threshold):
         {df_str}
 
         Please generate a short personalized call script (2 paragraphs) for this client,
-        highlighting their situation and suggesting why an investment is a good fit.
-        Add a touch of humor to keep it engaging. Can you please assign a random name to the customer?
+        highlighting their situation and suggesting why an investment is a good fit.Can you please assign a random name to the customer?
         """
 
         try:
@@ -131,9 +130,6 @@ def single_client_ui(model, threshold):
 
         except Exception as e:
             st.error(f"Error generating script: {e}")
-
-
-# ---------- UI for Bulk CSV Prediction ----------
 
 # ---------- UI for Bulk CSV Prediction ----------
 
@@ -178,12 +174,10 @@ def bulk_csv_ui(model, threshold):
             st.metric(
                 "Probability of Success",
                 f"{prob_at_least_one:.1%}"            )
-
         with col2:
             st.metric(
                 "Investors Above Threshold",
                 f"{predicted_investors}/{total_customers}",
-                f"{(predicted_investors/total_customers):.1%}"
             )
 
         with col3:
@@ -327,10 +321,10 @@ def show_prediction():
 
     # Show content based on selected tab
     if st.session_state.selected_tab == 0:
-        # Threshold slider only for this tab
-        threshold = st.slider("Adjust investment threshold", 0.0, 0.10, 0.05, 0.10)
+        # Threshold slider only for bulk CSV
+        threshold = st.slider("Adjust investment threshold", 0.0, 0.10, 0.035, 0.01)
         single_client_ui(model, threshold)
     else:
         # Threshold slider only for bulk CSV
-        threshold = st.slider("Adjust investment threshold", 0.0, 0.10, 0.05, 0.10)
+        threshold = st.slider("Adjust investment threshold", 0.0, 0.10, 0.035, 0.01)
         bulk_csv_ui(model, threshold)
