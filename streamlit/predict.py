@@ -131,9 +131,6 @@ def single_client_ui(model, threshold):
         except Exception as e:
             st.error(f"Error generating script: {e}")
 
-
-# ---------- UI for Bulk CSV Prediction ----------
-
 # ---------- UI for Bulk CSV Prediction ----------
 
 def bulk_csv_ui(model, threshold):
@@ -176,9 +173,7 @@ def bulk_csv_ui(model, threshold):
         with col1:
             st.metric(
                 "Probability of Success",
-                f"{prob_at_least_one:.1%}"
-            )
-
+                f"{prob_at_least_one:.1%}"            )
         with col2:
             st.metric(
                 "Investors Above Threshold",
@@ -326,7 +321,7 @@ def show_prediction():
 
     # Show content based on selected tab
     if st.session_state.selected_tab == 0:
-        # Threshold slider only for this tab
+        # Threshold slider only for bulk CSV
         threshold = st.slider("Adjust investment threshold", 0.0, 0.10, 0.035, 0.01)
         single_client_ui(model, threshold)
     else:
