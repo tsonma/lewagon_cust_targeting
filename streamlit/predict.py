@@ -112,8 +112,7 @@ def single_client_ui(model, threshold):
         {df_str}
 
         Please generate a short personalized call script (2 paragraphs) for this client,
-        highlighting their situation and suggesting why an investment is a good fit.
-        Add a touch of humor to keep it engaging. Can you please assign a random name to the customer?
+        highlighting their situation and suggesting why an investment is a good fit.Can you please assign a random name to the customer?
         """
 
         try:
@@ -132,6 +131,8 @@ def single_client_ui(model, threshold):
         except Exception as e:
             st.error(f"Error generating script: {e}")
 
+
+# ---------- UI for Bulk CSV Prediction ----------
 
 # ---------- UI for Bulk CSV Prediction ----------
 
@@ -156,6 +157,40 @@ def bulk_csv_ui(model, threshold):
         # Sort descending by probability
         X.sort_values(by="Probability", ascending=False, inplace=True)
 
+        # Calculate probability of convincing at least 1 customer
+        # P(at least 1 success) = 1 - P(all failures)
+        prob_no_investment = 1
+        for prob in probabilities:
+            prob_no_investment *= (1 - prob)
+
+        prob_at_least_one = 1 - prob_no_investment
+
+        # Calculate some additional metrics
+        total_customers = len(X)
+        predicted_investors = sum([1 for pred in predictions if pred == "Will Invest"])
+        avg_probability = probabilities.mean()
+
+        # Display metrics
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.metric(
+                "Probability of Success",
+                f"{prob_at_least_one:.1%}"
+            )
+
+        with col2:
+            st.metric(
+                "Investors Above Threshold",
+                f"{predicted_investors}/{total_customers}",
+            )
+
+        with col3:
+            st.metric(
+                "Average Probability",
+                f"{avg_probability:.1%}"
+            )
+
         # Format the probability for display
         df_display = X.copy()
         df_display["Prediction"] = [color_prediction(pred) for pred in df_display["Prediction"]]
@@ -163,10 +198,10 @@ def bulk_csv_ui(model, threshold):
 
         # Display results
         st.write("### 📊 Results")
-        st.write(df_display[[
-            "Name", "Phone", "age", "job", "marital", "education", "balance", "housing", "loan",
-            "Prediction", "Probability"
-        ]])
+        st.dataframe(
+            df_display[["Name", "Phone", "Prediction", "Probability"]],
+            hide_index=True
+        )
 
         # Download button
         csv_download = X[["Name", "Phone", "age", "job", "marital", "education", "balance", "housing", "loan", "Prediction", "Probability"]].to_csv(index=False).encode('utf-8')
@@ -179,7 +214,7 @@ def bulk_csv_ui(model, threshold):
         )
 
         # --- Optional ChatGPT Integration for Script Generation ---
-        if st.button("🤖 Generate Personalized Call Scripts", type="primary", use_container_width=True):
+        if st.button("🤖 Generate Personalized Call Scripts", type="primary"):
             # Add custom CSS for green button
             st.markdown("""
             <style>
@@ -292,9 +327,9 @@ def show_prediction():
     # Show content based on selected tab
     if st.session_state.selected_tab == 0:
         # Threshold slider only for this tab
-        threshold = st.slider("Adjust investment threshold", 0.0, 1.0, 0.5, 0.01)
+        threshold = st.slider("Adjust investment threshold", 0.0, 0.10, 0.035, 0.01)
         single_client_ui(model, threshold)
     else:
         # Threshold slider only for bulk CSV
-        threshold = st.slider("Adjust investment threshold", 0.0, 1.0, 0.5, 0.01)
+        threshold = st.slider("Adjust investment threshold", 0.0, 0.10, 0.035, 0.01)
         bulk_csv_ui(model, threshold)
