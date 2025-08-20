@@ -9,6 +9,8 @@ import openai
 from dotenv import load_dotenv
 from src.getdata_utils import load_data
 from faker import Faker
+from theme import set_theme
+set_theme()
 
 load_dotenv()
 openai.api_key = os.getenv("openai_api_key")  # store your key in env var
