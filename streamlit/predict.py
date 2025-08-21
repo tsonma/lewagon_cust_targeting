@@ -1,16 +1,19 @@
 import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+import sys
 import pathlib
 import streamlit as st
 import plotly.express as px
 import pickle
 import pandas as pd
-import os
 import openai
 from dotenv import load_dotenv
 from src.getdata_utils import load_data
 from faker import Faker
 from theme import set_theme
 set_theme()
+# load_dotenv()
 
 # openai.api_key = os.getenv("openai_api_key")
 openai.api_key = st.secrets["openai_api_key"]
