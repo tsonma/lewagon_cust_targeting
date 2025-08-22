@@ -11,8 +11,7 @@ from eda_profiles import show_profiles  # donut + filters
 
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
-#from theme import set_theme
-#set_theme()
+
 
 # ---------- Profile cards (images + descriptions) ----------
 PROFILE_INFO = {
