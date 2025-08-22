@@ -4,8 +4,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import streamlit as st
 import plotly.express as px
 import pandas as pd
-from theme import set_theme
-set_theme()
+#from theme import set_theme
+#set_theme()
 
 def show_eda(data):
     COLOR_MAP = {"yes": "#66c2a5", "no": "#fc8d62"}  # pleasant Set2-like colors
