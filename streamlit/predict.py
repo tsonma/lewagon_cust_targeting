@@ -11,12 +11,12 @@ import openai
 from dotenv import load_dotenv
 from src.getdata_utils import load_data
 from faker import Faker
-from theme import set_theme
-set_theme()
-# load_dotenv()
+#from theme import set_theme
+#set_theme()
+load_dotenv()
 
-# openai.api_key = os.getenv("openai_api_key")
-openai.api_key = st.secrets["openai_api_key"]
+openai.api_key = os.getenv("openai_api_key")
+#openai.api_key = st.secrets["openai_api_key"]
 
 # Add project root to sys.path
 project_root = pathlib.Path(__file__).parent.parent.resolve()
