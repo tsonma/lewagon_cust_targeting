@@ -248,7 +248,7 @@ def _fig_cluster_proportion(d: pd.DataFrame) -> go.Figure:
 
 # -------------------- PUBLIC ENTRY --------------------
 def show_profiles(df: pd.DataFrame):
-    st.title("👥 Profiles Explorer")
+    st.title("Profiles Explorer")
 
     with st.expander("Show Profiles", expanded=True):
         cols = st.columns(2)
