@@ -58,13 +58,38 @@ def validate_csv_structure(df: pd.DataFrame) -> tuple[bool, list]:
     return len(missing_cols) == 0, missing_cols
 
 def show_home_page():
-    """Home page with file upload functionality for the Profiles page."""
-    st.title("Predictr")
-    st.markdown("Upload your customer dataset to analyze customer profiles.")
+    # --- New: App Title with a Logo ---
+    logo_path = "streamlit/assets/investrai.png"
 
-    # File upload section
+    col_logo, col_title = st.columns([1, 6])
+    with col_logo:
+        # Check if logo exists before displaying it
+        if os.path.exists(logo_path):
+            st.image(logo_path, width=100)
+        else:
+            st.warning("Logo image not found. Please save it to 'streamlit/assets/investrai.png'")
+            st.markdown("<br>", unsafe_allow_html=True)  # Add some space
+
+    with col_title:
+        st.title("InvestrAI")
+        st.markdown("<br>", unsafe_allow_html=True)  # Add some space
+
+    # --- New: Welcoming Message and Description ---
+    st.markdown(
+        """
+        ### Welcome! 👋
+        Smarter predictions. Better decisions. Welcome to InvestrAI, your AI-powered partner in customer investment prediction.
+
+        To get started, please upload your customer dataset.
+        """
+    )
+
+    st.divider()
+
+    # --- File Upload and Default Dataset Section ---
     st.subheader("📁 Upload Dataset for Profiles")
 
+    # This is the original file uploader
     uploaded_file = st.file_uploader(
         "Choose a CSV file",
         type=['csv'],
@@ -72,11 +97,7 @@ def show_home_page():
         help="This dataset will be used for the Profiles and EDA pages."
     )
 
-    # Initialize a flag to control button visibility
-    if 'file_uploaded' not in st.session_state:
-        st.session_state['file_uploaded'] = False
-        st.session_state['data'] = None
-
+    # Original logic for processing an uploaded file
     if uploaded_file is not None:
         with st.spinner("Loading and validating your dataset..."):
             df = load_uploaded_csv(uploaded_file)
@@ -88,6 +109,7 @@ def show_home_page():
                     st.session_state['file_uploaded'] = True
                     st.success(f"✅ Dataset loaded! ({len(df):,} rows, {len(df.columns)} columns)")
 
+                    # --- RE-ADDED: Preview Dataset Section ---
                     with st.expander("Preview Dataset"):
                         st.dataframe(df.head())
 
@@ -102,17 +124,15 @@ def show_home_page():
 
     # This is the section that renders the button. It should be the only place.
     if st.session_state.get('file_uploaded'):
+        st.divider()
         st.success("🎉 Data ready! Click 'Start Analysis' to proceed to the Profiles page.")
-        st.markdown("---")
         col1, col2, col3 = st.columns([1, 1, 1])
         with col2:
             if st.button("🚀 Start Analysis", use_container_width=True):
                 st.session_state['current_page'] = "👥 Profiles"
                 st.rerun()
     elif uploaded_file is None:
-        st.info("Upload a CSV file to analyze customer profiles.")
-
-# This function is a simple, robust way to handle page transitions
+        st.info("Upload a CSV file to begin.")
 def handle_page_change():
     st.session_state['current_page'] = st.session_state['page_selector']
 
