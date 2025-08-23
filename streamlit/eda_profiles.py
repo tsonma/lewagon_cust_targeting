@@ -190,7 +190,7 @@ def _summary_badge(d: pd.DataFrame):
           .reindex(["Low","Medium","High"], fill_value=0) * 100).round(1)
     st.caption(f"**Yearly Balance** — Low: {vc['Low']:.1f}% • Medium: {vc['Medium']:.1f}% • High: {vc['High']:.1f}%")
 
-def _fig_compare_sunburst(dcomp: pd.DataFrame) -> go.Figure:
+# def _fig_compare_sunburst(dcomp: pd.DataFrame) -> go.Figure:
 
 
 def show_profiles(data: pd.DataFrame):
