@@ -46,6 +46,9 @@ CLUSTER_ORDER = [
     "Over-Contacted Non-Responders",
 ]
 
+# Palette Outcome (réutilisée partout où l'on compare y)
+OUTCOME_COLOR_MAP = {"yes": "#66c2a5", "no": "#fc8d62"}
+
 # -------------------- helpers --------------------
 def _derive_helper_cols(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
@@ -140,7 +143,7 @@ def _fig_outcome(d: pd.DataFrame, title="Subscription Outcome (y)"):
     plot_df = pd.DataFrame({"y": vc.index, "percent": vc.values})
     fig = px.bar(
         plot_df, x="y", y="percent", text="percent", color="y",
-        color_discrete_map={"yes":"#66c2a5", "no":"#fc8d62"},
+        color_discrete_map=OUTCOME_COLOR_MAP,
         title=title
     )
     fig.update_traces(texttemplate="%{y:.1f}%", textposition="outside")
@@ -149,31 +152,91 @@ def _fig_outcome(d: pd.DataFrame, title="Subscription Outcome (y)"):
     return fig
 
 def _fig_age_box(d: pd.DataFrame):
-    if "age" not in d.columns:
+    """
+    Age en histogramme (percent) groupé par y (même palette que Outcome).
+    """
+    if "age" not in d.columns or "y" not in d.columns:
         return go.Figure()
-    return px.box(d, y="age", points=False, title="Age Distribution", color_discrete_sequence=["#7db5ff"])
+    fig = px.histogram(
+        d, x="age", color="y",
+        nbins=30, histnorm="percent", barmode="group",
+        color_discrete_map=OUTCOME_COLOR_MAP,
+        title="Age vs Target (y)"
+    )
+    fig.update_yaxes(title="Percent")
+    return fig
 
 def _fig_pie(d: pd.DataFrame, col: str, title: str):
+    """
+    Pie générique. Si les valeurs sont yes/no, utilise la palette Outcome.
+    """
     if col not in d.columns:
         return go.Figure()
-    vc = d[col].value_counts().reset_index()
+    vc = d[col].astype(str).value_counts().reset_index()
     vc.columns = [col, "count"]
-    return px.pie(vc, names=col, values="count", hole=0.35, title=title)
+    fig = px.pie(
+        vc, names=col, values="count",
+        color=col,
+        color_discrete_map=OUTCOME_COLOR_MAP,
+        hole=0.35, title=title
+    )
+    return fig
 
-def _fig_top_jobs(d: pd.DataFrame, top_n=10):
+def _fig_top_jobs(d: pd.DataFrame, top_n=10, color_by_y: bool = True):
+    """
+    Top jobs (counts). Par défaut: split yes/no (barmode group) avec palette Outcome.
+    """
     if "job" not in d.columns:
         return go.Figure()
+
     vc = d["job"].value_counts().head(top_n)
+    top_jobs = vc.index
+    dd = d[d["job"].isin(top_jobs)].copy()
+
+    if color_by_y and "y" in dd.columns:
+        g = dd.groupby(["job", "y"]).size().reset_index(name="count")
+        g["job"] = pd.Categorical(g["job"], categories=top_jobs, ordered=True)
+        fig = px.bar(
+            g, x="count", y="job",
+            color="y", orientation="h", barmode="group",
+            color_discrete_map=OUTCOME_COLOR_MAP,
+            title=f"Top {top_n} Jobs — Counts by y"
+        )
+        fig.update_layout(xaxis_title="Count", yaxis_title="job")
+        return fig
+
+    # fallback sans y
     plot_df = vc.sort_values(ascending=True).reset_index()
     plot_df.columns = ["job", "count"]
-    return px.bar(
+    fig = px.bar(
         plot_df, x="count", y="job", orientation="h",
         title=f"Top {top_n} Jobs", color_discrete_sequence=["#3fc1c9"]
     )
+    return fig
 
-def _fig_edu_percent(d: pd.DataFrame):
+def _fig_edu_percent(d: pd.DataFrame, color_by_y: bool = True):
+    """
+    Education en % par niveau. Par défaut: split yes/no (somme = 100% par niveau).
+    """
     if "education" not in d.columns:
         return go.Figure()
+
+    if color_by_y and "y" in d.columns:
+        g = d.groupby(["education", "y"]).size().reset_index(name="count")
+        g["total_edu"] = g.groupby("education")["count"].transform("sum")
+        g["percent"] = (g["count"] / g["total_edu"] * 100).round(1)
+
+        fig = px.bar(
+            g, x="percent", y="education",
+            color="y", orientation="h", barmode="group",
+            color_discrete_map=OUTCOME_COLOR_MAP,
+            title="Education — % by y (row-normalized)"
+        )
+        fig.update_xaxes(range=[0, 100], title="Percent")
+        fig.update_yaxes(title="education")
+        return fig
+
+    # fallback sans y
     vc = (d["education"].value_counts(normalize=True) * 100).round(1)
     plot_df = vc.sort_values(ascending=True).reset_index()
     plot_df.columns = ["education", "percent"]
@@ -185,18 +248,46 @@ def _fig_edu_percent(d: pd.DataFrame):
     return fig
 
 def _fig_month(d: pd.DataFrame):
+    """
+    Month en % par mois, split par y, groupé, palette Outcome.
+    """
     if "month" not in d.columns:
         return go.Figure()
-    month_counts = d["month"].value_counts().sort_index()
-    return px.bar(
-        month_counts,
-        x=month_counts.index,
-        y=month_counts.values,
-        title="Number of Contacts by Month",
-        labels={"x": "Month", "y": "Contacts"},
-        color=month_counts.values,
-        color_continuous_scale="Blues"
+
+    if "y" not in d.columns:
+        month_counts = d["month"].value_counts().sort_index()
+        return px.bar(
+            month_counts,
+            x=month_counts.index,
+            y=month_counts.values,
+            title="Number of Contacts by Month",
+            labels={"x": "Month", "y": "Contacts"},
+            color=month_counts.values,
+            color_continuous_scale="Blues"
+        )
+
+    counts = d.groupby(["month", "y"]).size().reset_index(name="count")
+    totals = counts.groupby("month")["count"].transform("sum")
+    counts["percent"] = (counts["count"] / totals * 100).round(1)
+
+    month_order = None
+    unique_months = counts["month"].astype(str).str.lower().unique().tolist()
+    known = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"]
+    if all(m in known for m in [m.lower() for m in unique_months]):
+        month_order = [m for m in known if m in [mm.lower() for mm in unique_months]]
+        mapping = {m.lower(): m for m in counts["month"].astype(str).unique()}
+        month_order = [mapping[m] for m in month_order]
+
+    fig = px.bar(
+        counts,
+        x="month", y="percent", color="y",
+        barmode="group",
+        color_discrete_map=OUTCOME_COLOR_MAP,
+        category_orders={"month": month_order} if month_order else None,
+        title="Contacts by Month — % within month"
     )
+    fig.update_yaxes(title="Percent", range=[0, 100])
+    return fig
 
 def _fig_compare_bars(dcomp: pd.DataFrame) -> go.Figure:
     if "y" not in dcomp.columns or "cluster_label" not in dcomp.columns:
@@ -214,7 +305,7 @@ def _fig_compare_bars(dcomp: pd.DataFrame) -> go.Figure:
         barmode="group",
         text="percent",
         title="Yes/No distribution by cluster (%)",
-        color_discrete_map={"yes": "#66c2a5", "no": "#fc8d62"}
+        color_discrete_map=OUTCOME_COLOR_MAP
     )
     fig.update_traces(texttemplate="%{y:.1f}%", textposition="outside")
     fig.update_yaxes(range=[0, 100], title="Percent")
@@ -288,20 +379,33 @@ def show_profiles(df: pd.DataFrame):
         st.info("No data for this selection.")
         return
 
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
-        ["Outcome", "Age", "Loans", "Housing", "Jobs & Education", "Month"]
+    # ------ 7 tabs ------
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(
+        ["Outcome", "Age", "Loans", "Housing", "Jobs", "Education", "Month"]
     )
+
     with tab1:
         st.plotly_chart(_fig_outcome(dsel), use_container_width=True)
+
     with tab2:
         st.plotly_chart(_fig_age_box(dsel), use_container_width=True)
+
     with tab3:
+        # Loans — palette yes/no uniforme
         st.plotly_chart(_fig_pie(dsel, "loan", "Loan Status"), use_container_width=True)
+
     with tab4:
+        # Housing — palette yes/no uniforme
         st.plotly_chart(_fig_pie(dsel, "housing", "Housing Loan Status"), use_container_width=True)
+
     with tab5:
-        top_n = st.slider("Show top N jobs", 3, 15, 10)
-        st.plotly_chart(_fig_top_jobs(dsel, top_n=top_n), use_container_width=True)
-        st.plotly_chart(_fig_edu_percent(dsel), use_container_width=True)
+        # Jobs — version yes/no uniquement (Top N contrôlable)
+        top_n = st.slider("Show top N jobs", 3, 20, 10)
+        st.plotly_chart(_fig_top_jobs(dsel, top_n=top_n, color_by_y=True), use_container_width=True)
+
     with tab6:
+        # Education — version yes/no uniquement (100% par niveau)
+        st.plotly_chart(_fig_edu_percent(dsel, color_by_y=True), use_container_width=True)
+
+    with tab7:
         st.plotly_chart(_fig_month(dsel), use_container_width=True)
