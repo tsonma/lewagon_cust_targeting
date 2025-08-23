@@ -1,57 +1,23 @@
+# streamlit/app.py
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-import streamlit as st
-import pandas as pd
-from pathlib import Path
+
 import io
+from pathlib import Path
+import pandas as pd
+import streamlit as st
 
-from eda_profiles import show_profiles   # consolidated profiles page (with clustering)
-from predict import show_prediction      # your existing prediction page
-
-# ---------- Profile cards (images + descriptions) ----------
-PROFILE_INFO = {
-    "Young & Students": {
-        "img": "streamlit/assets/profile_young_students.jpg",
-        "desc": (
-            "Early‑career or students (20–35). Digital‑first, lower balances, "
-            "curious and reactive to concise, mobile‑friendly campaigns. "
-            "Good targets for entry products and trial offers."
-        ),
-    },
-    "Retired / Stable": {
-        "img": "streamlit/assets/profile_retired_stable.jpg",
-        "desc": (
-            "50+ retired or close to retirement. Higher average balances, "
-            "risk‑averse, prefer clear and trustworthy communication. "
-            "Respond to safe, income/guarantee‑oriented products."
-        ),
-    },
-    "Middle-age with Loans": {
-        "img": "streamlit/assets/profile_middle_loans.jpg",
-        "desc": (
-            "Mid‑career households with housing/personal loans. Budget‑conscious, "
-            "value clear ROI and terms. Improve conversion with tailored value props "
-            "and cross‑sell around repayment planning."
-        ),
-    },
-    "High-balance Professionals": {
-        "img": "streamlit/assets/profile_high_balance.jpg",
-        "desc": (
-            "Smaller segment with high balances/income. Busy schedules, prefer premium "
-            "offers and concise outreach. High upside per conversion."
-        ),
-    },
-}
+from eda_profiles import show_profiles          # onglet 👥 Profiles
+from predict import show_prediction              # onglet 🔮 Prediction (déjà existant)
 
 # ---------- Expected columns for validation ----------
 REQUIRED_COLUMNS = [
-    'age', 'job', 'marital', 'education', 'default', 'balance',
-    'housing', 'loan', 'contact', 'day', 'month', 'campaign',
-    'pdays', 'previous', 'poutcome', 'y'
+    "age", "job", "marital", "education", "default", "balance",
+    "housing", "loan", "contact", "day", "month", "campaign",
+    "pdays", "previous", "poutcome", "y"
 ]
 
-# ---------- Data loader and validation ----------
 @st.cache_data
 def load_default_data() -> pd.DataFrame:
     """Load the default bank dataset"""
@@ -68,119 +34,82 @@ def validate_csv_structure(df: pd.DataFrame) -> tuple[bool, list]:
     return len(missing_cols) == 0, missing_cols
 
 def load_uploaded_csv(uploaded_file) -> pd.DataFrame:
-    """Load and validate uploaded CSV file"""
+    """Load and validate uploaded CSV file (try common separators)"""
     try:
-        # Try different separators
-        content = uploaded_file.getvalue().decode('utf-8')
+        content = uploaded_file.getvalue().decode("utf-8")
 
-        # First try semicolon separator (like bank-full.csv)
-        try:
-            df = pd.read_csv(io.StringIO(content), sep=';')
-            if len(df.columns) > 1:  # Successfully parsed with semicolon
-                return df
-        except:
-            pass
-
-        # Try comma separator
-        try:
-            df = pd.read_csv(io.StringIO(content), sep=',')
-            return df
-        except:
-            pass
-
-        # Try tab separator
-        try:
-            df = pd.read_csv(io.StringIO(content), sep='\t')
-            return df
-        except:
-            pass
-
-        # If all fail, raise error
+        for sep in (";", ",", "\t"):
+            try:
+                df = pd.read_csv(io.StringIO(content), sep=sep)
+                if sep != ";" or len(df.columns) > 1:
+                    return df
+            except Exception:
+                pass
         raise ValueError("Could not parse CSV with common separators")
-
     except Exception as e:
-        st.error(f"Error reading CSV file: {str(e)}")
+        st.error(f"Error reading CSV file: {e}")
         return pd.DataFrame()
 
+# ---------- Home / Upload ----------
 def show_home_page():
-    """Home page with file upload functionality"""
     st.title("🏦 Investment Prediction App")
     st.markdown("Upload your customer dataset to get started.")
 
-
-    # File upload section
     st.subheader("📁 Upload Dataset")
-
     uploaded_file = st.file_uploader(
         "Choose a CSV file",
-        type=['csv'],
+        type=["csv"],
         help="Upload your customer dataset in CSV format"
     )
-
     use_sample = st.button("Use Sample Data", type="secondary")
 
-    # Handle file upload or sample data
     if uploaded_file is not None:
         with st.spinner("Loading and validating your dataset..."):
             df = load_uploaded_csv(uploaded_file)
 
-            if not df.empty:
-                # Validate structure
-                is_valid, missing_cols = validate_csv_structure(df)
-
-                if is_valid:
-                    st.success(f"✅ Dataset loaded! ({len(df):,} rows, {len(df.columns)} columns)")
-
-
-                    # Store in session state
-                    st.session_state['data'] = df
-                    st.session_state['data_source'] = f"Uploaded: {uploaded_file.name}"
-
-                    # Show preview
-                    with st.expander("Preview Dataset"):
-                        st.dataframe(df.head())
-
-                    st.success("🎉 Data ready! Use the sidebar to navigate.")
-                    use_sample = st.button("Start analysis", type="secondary")
-
-                else:
-                    st.error("❌ Invalid CSV structure!")
-                    st.write("Missing columns:", missing_cols)
+        if not df.empty:
+            is_valid, missing_cols = validate_csv_structure(df)
+            if is_valid:
+                st.success(f"✅ Dataset loaded! ({len(df):,} rows, {len(df.columns)} columns)")
+                st.session_state["data"] = df
+                st.session_state["data_source"] = f"Uploaded: {uploaded_file.name}"
+                with st.expander("Preview Dataset"):
+                    st.dataframe(df.head(), use_container_width=True)
+                st.success("🎉 Data ready! Use the sidebar to navigate.")
+            else:
+                st.error("❌ Invalid CSV structure!")
+                st.write("Missing columns:", missing_cols)
 
     elif use_sample:
         with st.spinner("Loading sample dataset..."):
             df = load_default_data()
+        if not df.empty:
+            st.success(f"✅ Sample dataset loaded! ({len(df):,} rows, {len(df.columns)} columns)")
+            st.session_state["data"] = df
+            st.session_state["data_source"] = "Sample: bank-full.csv"
+            st.success("🎉 Sample data ready! Use the sidebar to navigate.")
 
-            if not df.empty:
-                st.success(f"✅ Sample dataset loaded! ({len(df):,} rows, {len(df.columns)} columns)")
-
-                # Store in session state
-                st.session_state['data'] = df
-                st.session_state['data_source'] = "Sample: bank-full.csv"
-
-                st.success("🎉 Sample data ready! Use the sidebar to navigate.")
-
-    # Instructions when no data is loaded
-    if 'data' not in st.session_state or st.session_state['data'] is None:
+    if "data" not in st.session_state or st.session_state["data"] is None:
         st.info("Upload a CSV file or use sample data to get started.")
 
+# ---------- App entry ----------
 def main():
-    # Initialize session state
-    if 'data' not in st.session_state:
-        st.session_state['data'] = None
+    st.set_page_config(page_title="Customer Targeting", layout="wide")
 
-    # Sidebar navigation
+    if "data" not in st.session_state:
+        st.session_state["data"] = None
+
     st.sidebar.header("🧭 Navigation")
 
-    # Show data source if available
-    if 'data_source' in st.session_state and st.session_state['data'] is not None:
+    data_available = (
+        st.session_state.get("data") is not None
+        and not st.session_state["data"].empty
+    )
+    if st.session_state.get("data_source") and data_available:
         st.sidebar.success(f"📊 Data: {st.session_state['data_source']}")
         st.sidebar.markdown("---")
 
-    # Navigation menu - check if we actually have data loaded
-    data_available = (st.session_state.get('data') is not None and
-                     not st.session_state['data'].empty)
-
+    # Menu (garder l’ordre établi par l’équipe)
     if data_available:
         page = st.sidebar.selectbox(
             "Choose a page",
@@ -191,15 +120,17 @@ def main():
         page = "🏠 Home"
         st.sidebar.info("📁 Please upload data first to access other pages")
 
-    # Page routing
+    # Routing (on ne modifie que l’appel du tab Profiles)
     if page == "🏠 Home":
         show_home_page()
+
     elif page == "👥 Profiles":
         if data_available:
-            show_profiles(st.session_state['data'])
+            show_profiles(st.session_state["data"])
         else:
             st.warning("Please upload data first on the Home page")
             show_home_page()
+
     elif page == "🔮 Prediction":
         if data_available:
             show_prediction()
