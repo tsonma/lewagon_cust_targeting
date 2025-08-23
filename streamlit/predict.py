@@ -9,8 +9,6 @@ import pandas as pd
 import openai
 from dotenv import load_dotenv
 from src.getdata_utils import load_data
-from faker import Faker
-
 
 load_dotenv()
 
@@ -146,13 +144,12 @@ def single_client_ui(model):
             except Exception as e:
                 st.error(f"Error generating script: {e}")
 
-# ---------- UI for Bulk CSV Prediction ----------
 def bulk_csv_ui(model, threshold):
     uploaded_file = st.file_uploader("Upload a CSV file", type=["csv"])
     if uploaded_file:
 
         # Load data
-        X, y = load_data(filepath=uploaded_file)
+        X,y = load_data(filepath=uploaded_file)
         probabilities = model.predict_proba(X)[:, 1]
         predictions = ["Will Invest" if p >= threshold else "Will Not Invest" for p in probabilities]
 
@@ -160,27 +157,10 @@ def bulk_csv_ui(model, threshold):
         X["Probability"] = probabilities
 
         # FILTER CUSTOMERS BASED ON THRESHOLD
-        # Keep track of original count for metrics
         total_customers_original = len(X)
-
-        # Filter to only show customers above threshold
         mask_above_threshold = X["Probability"] >= threshold
         X_filtered = X[mask_above_threshold].copy()
         probabilities_filtered = probabilities[mask_above_threshold]
-
-        # --- Generate random names & phone numbers for FILTERED data (CACHED) ---
-        # Use filtered data for hash to ensure consistency
-        filtered_indices = X_filtered.index.tolist()
-        data_hash = hash(str(filtered_indices + X_filtered.columns.tolist()))
-
-        if f"names_{data_hash}" not in st.session_state:
-            fake = Faker()
-            fake.seed_instance(42)
-            st.session_state[f"names_{data_hash}"] = [fake.name() for _ in range(len(X_filtered))]
-            st.session_state[f"phones_{data_hash}"] = [f"(514)-{fake.random_int(100, 999)}-{fake.random_int(1000, 9999)}" for _ in range(len(X_filtered))]
-
-        X_filtered["Name"] = st.session_state[f"names_{data_hash}"]
-        X_filtered["Phone"] = st.session_state[f"phones_{data_hash}"]
 
         # Sort descending by probability
         X_filtered.sort_values(by="Probability", ascending=False, inplace=True)
@@ -195,32 +175,27 @@ def bulk_csv_ui(model, threshold):
             help="Select the number of successful investments you're targeting"
         )
 
-        # Simple calculation: probability of getting at least the desired number of successes
+        # Calculate expected number of successes and probability
         if len(probabilities_filtered) > 0:
-            # Calculate expected number of successes (simple sum of probabilities)
             expected_successes = sum(probabilities_filtered)
-
-            # Simple approximation: assume independence and use binomial with average probability
             avg_prob = sum(probabilities_filtered) / len(probabilities_filtered)
             n_prospects = len(probabilities_filtered)
 
-            # Calculate probability using binomial distribution
-            prob_at_least_desired = 0
-            for k in range(desired_successes, n_prospects + 1):
-                # Binomial probability: C(n,k) * p^k * (1-p)^(n-k)
-                from math import comb
-                prob_k = comb(n_prospects, k) * (avg_prob ** k) * ((1 - avg_prob) ** (n_prospects - k))
-                prob_at_least_desired += prob_k
+            from math import comb
+            prob_at_least_desired = sum(
+                comb(n_prospects, k) * (avg_prob ** k) * ((1 - avg_prob) ** (n_prospects - k))
+                for k in range(desired_successes, n_prospects + 1)
+            )
         else:
             prob_at_least_desired = 0
             expected_successes = 0
 
         # Additional metrics
         total_customers_filtered = len(X_filtered)
-        predicted_investors = len(X_filtered)  # All filtered customers are predicted investors
+        predicted_investors = len(X_filtered)
         avg_probability = probabilities_filtered.mean() if len(probabilities_filtered) > 0 else 0
 
-        # Display metrics with comparison to original dataset
+        # Display metrics
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric("Total Prospects", f"{total_customers_filtered}",
@@ -228,7 +203,6 @@ def bulk_csv_ui(model, threshold):
         with col2:
             st.metric(f"Probability of ≥ {desired_successes} Success{'es' if desired_successes > 1 else ''}",
                      f"{prob_at_least_desired:.1%}")
-
         with col3:
             st.metric("Average Probability", f"{avg_probability:.1%}")
 
@@ -246,14 +220,15 @@ def bulk_csv_ui(model, threshold):
         df_display["Probability"] = df_display["Probability"].apply(lambda p: f"{p:.2%}")
 
         st.write("### Results")
-        st.dataframe(df_display[["Name", "Phone", "Probability"]], hide_index=True)
+        st.dataframe(df_display[["name", "phone number", "Probability"]], hide_index=True)
 
         # Download button (using filtered data)
-        csv_download = X_filtered[["Name","Phone","age","job","marital","education","balance","housing","loan","Probability"]].to_csv(index=False).encode('utf-8')
+        csv_download = X_filtered[["name","phone number","age","job","marital","education","balance","housing","loan","Probability"]].to_csv(index=False).encode('utf-8')
         st.download_button(label="💾 Download Predictions", data=csv_download, file_name="predictions.csv", mime="text/csv")
 
         # Optional ChatGPT scripts generation (using filtered data)
         if st.button("🤖 Generate Personalized Scripts"):
+            data_hash = hash(str(X_filtered.index.tolist() + X_filtered.columns.tolist()))
             scripts_key = f"scripts_{data_hash}_{threshold}"
             if scripts_key not in st.session_state:
                 st.write("### Generating Personalized Scripts...")
@@ -273,13 +248,13 @@ def bulk_csv_ui(model, threshold):
                     customer_data = row[["age","job","marital","education","housing","loan"]].to_dict()
                     customer_str = ", ".join([f"{k}: {v}" for k,v in customer_data.items()])
                     user_prompt = f"""
-                    Here is the customer data for {row['Name']}:
+                    Here is the customer data for {row['name']}:
                     {customer_str}
 
                     Please generate a short personalized call script (2 paragraphs) for this client,
                     highlighting their situation and suggesting why an investment opportunity might be beneficial for them.
                     Use gentle, friendly humor that's warm and respectful.
-                    Use the customer's name: {row['Name']}.
+                    Use the customer's name: {row['name']}.
                     IMPORTANT: Do not mention account balances, specific dollar amounts, or financial details.
                     """
 
@@ -295,7 +270,7 @@ def bulk_csv_ui(model, threshold):
                         )
                         scripts.append(response.choices[0].message.content)
                     except Exception as e:
-                        st.error(f"Error generating script for {row['Name']}: {e}")
+                        st.error(f"Error generating script for {row['name']}: {e}")
                         scripts.append(f"Script generation failed: {str(e)}")
 
                     progress_bar.progress((i+1)/len(X_filtered))
@@ -309,7 +284,7 @@ def bulk_csv_ui(model, threshold):
             st.write("#### Top 3 Prospects")
             top_3_display = df_display.head(3)
             for i, (idx, row) in enumerate(top_3_display.iterrows()):
-                with st.expander(f"Script for {row['Name']} ({row['Prediction']} - {row['Probability']})"):
+                with st.expander(f"Script for {row['name']} ({row['Prediction']} - {row['Probability']})"):
                     st.write(X_filtered.loc[idx,"Script"])
 
             csv_download_with_scripts = X_filtered.to_csv(index=False).encode('utf-8')

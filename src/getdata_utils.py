@@ -1,22 +1,30 @@
 import pandas as pd
+from sklearn.model_selection import train_test_split
 
 def load_data(filepath="../data/bank-full.csv"):
     """
-    Loads the bank dataset and processes the target variable.
+    Loads the bank dataset and processes the target variable if available.
 
     Args:
         filepath (str): Path to the CSV file.
 
     Returns:
-        X (pd.DataFrame): Feature set with 'y' and 'duration' dropped.
-        y (pd.Series): Binary target variable.
+        X (pd.DataFrame): Feature set with 'y' and 'duration' dropped if present.
+        y (pd.Series or None): Binary target variable, or None if not available.
     """
     df_bank = pd.read_csv(filepath, sep=None, engine="python", header=0)
-    X = df_bank.drop(['y', 'duration'], axis=1)
-    y = df_bank['y'].map({'no': 0, 'yes': 1})
-    return X, y
 
-from sklearn.model_selection import train_test_split
+    y = None
+    try:
+        if "y" in df_bank.columns:
+            y = df_bank["y"].map({"no": 0, "yes": 1})
+        drop_cols = [col for col in ["y", "duration"] if col in df_bank.columns]
+        X = df_bank.drop(drop_cols, axis=1)
+    except Exception as e:
+        print(f"Warning: Issue processing target variable or dropping columns - {e}")
+        X = df_bank.copy()
+
+    return X, y
 
 def split_data(X, y, test_size=0.20, val_size=0.25, random_state=42):
     """
