@@ -1,13 +1,15 @@
-
 # streamlit/eda_profiles.py
 import warnings
 warnings.filterwarnings("ignore")
+
+import os
+import sys
 from pathlib import Path
 import numpy as np
 import pandas as pd
-import sys
-import os
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
@@ -31,14 +33,18 @@ PERSONA_DESC = {
     "Older First-Timers": "Older audience contacted for the first time; prefer clarity/trust.",
     "Over-Contacted Non-Responders": "Fatigued by many contacts; low conversion.",
 }
-
-# Palette alignée
 CLUSTER_COLOR_MAP = {
-    "Young First-Timers": "#9ecae1",            # bleu clair
-    "Older First-Timers": "#2171b5",           # bleu foncé
-    "Engaged Re-contacts": "#fbb4ae",          # rose clair
-    "Over-Contacted Non-Responders": "#e41a1c" # rouge vif
+    "Young First-Timers": "#9ecae1",
+    "Older First-Timers": "#2171b5",
+    "Engaged Re-contacts": "#fbb4ae",
+    "Over-Contacted Non-Responders": "#e41a1c"
 }
+CLUSTER_ORDER = [
+    "Young First-Timers",
+    "Engaged Re-contacts",
+    "Older First-Timers",
+    "Over-Contacted Non-Responders",
+]
 
 # -------------------- helpers --------------------
 def _derive_helper_cols(df: pd.DataFrame) -> pd.DataFrame:
@@ -59,7 +65,9 @@ def _derive_helper_cols(df: pd.DataFrame) -> pd.DataFrame:
 
     if "yearly_balance" not in out.columns and "balance" in out.columns:
         out["yearly_balance"] = pd.cut(
-            out["balance"], bins=[-np.inf, 20000, 60000, np.inf], labels=["Low", "Medium", "High"]
+            out["balance"],
+            bins=[-np.inf, 20000, 60000, np.inf],
+            labels=["Low", "Medium", "High"]
         )
     return out
 
@@ -75,7 +83,8 @@ def _fit_kmeans_pipeline(df: pd.DataFrame):
     ] if c in df.columns]
 
     cat_features = [c for c in [
-        "job","marital","education","default","housing","loan","contact","month","poutcome"
+        "job","marital","education","default","housing","loan",
+        "contact","month","poutcome"
     ] if c in df.columns]
 
     if len(num_features) < 2 and len(cat_features) == 0:
@@ -114,7 +123,6 @@ def _assign_clusters_farah(df: pd.DataFrame) -> pd.DataFrame:
         X[c] = X[c].fillna(X[c].median())
 
     df["cluster"] = pipe.fit_predict(X)
-
     label_map = {
         0: "Young First-Timers",
         1: "Engaged Re-contacts",
@@ -126,6 +134,8 @@ def _assign_clusters_farah(df: pd.DataFrame) -> pd.DataFrame:
 
 # -------------------- chart builders --------------------
 def _fig_outcome(d: pd.DataFrame, title="Subscription Outcome (y)"):
+    if "y" not in d.columns:
+        return go.Figure()
     vc = d["y"].value_counts(normalize=True).reindex(["no", "yes"], fill_value=0) * 100
     plot_df = pd.DataFrame({"y": vc.index, "percent": vc.values})
     fig = px.bar(
@@ -156,12 +166,10 @@ def _fig_top_jobs(d: pd.DataFrame, top_n=10):
     vc = d["job"].value_counts().head(top_n)
     plot_df = vc.sort_values(ascending=True).reset_index()
     plot_df.columns = ["job", "count"]
-    fig = px.bar(
-        plot_df,
-        x="count", y="job", orientation="h",
+    return px.bar(
+        plot_df, x="count", y="job", orientation="h",
         title=f"Top {top_n} Jobs", color_discrete_sequence=["#3fc1c9"]
     )
-    return fig
 
 def _fig_edu_percent(d: pd.DataFrame):
     if "education" not in d.columns:
@@ -170,8 +178,7 @@ def _fig_edu_percent(d: pd.DataFrame):
     plot_df = vc.sort_values(ascending=True).reset_index()
     plot_df.columns = ["education", "percent"]
     fig = px.bar(
-        plot_df,
-        x="percent", y="education", orientation="h",
+        plot_df, x="percent", y="education", orientation="h",
         title="Education — %", color_discrete_sequence=["#a1c45a"]
     )
     fig.update_xaxes(range=[0, 100], title="Percent")
@@ -181,7 +188,7 @@ def _fig_month(d: pd.DataFrame):
     if "month" not in d.columns:
         return go.Figure()
     month_counts = d["month"].value_counts().sort_index()
-    fig = px.bar(
+    return px.bar(
         month_counts,
         x=month_counts.index,
         y=month_counts.values,
@@ -190,28 +197,20 @@ def _fig_month(d: pd.DataFrame):
         color=month_counts.values,
         color_continuous_scale="Blues"
     )
-    return fig
 
-# -------------------- compare charts --------------------
 def _fig_compare_bars(dcomp: pd.DataFrame) -> go.Figure:
-    if "y" not in dcomp.columns:
+    if "y" not in dcomp.columns or "cluster_label" not in dcomp.columns:
         return go.Figure()
     counts = dcomp.groupby(["cluster_label", "y"]).size().reset_index(name="count")
     totals = counts.groupby("cluster_label")["count"].transform("sum")
     counts["percent"] = (100.0 * counts["count"] / totals).round(1)
 
-    order = [
-        "Young First-Timers",
-        "Older First-Timers",
-        "Engaged Re-contacts",
-        "Over-Contacted Non-Responders",
-    ]
     fig = px.bar(
         counts,
         x="cluster_label",
         y="percent",
         color="y",
-        category_orders={"cluster_label": order},
+        category_orders={"cluster_label": CLUSTER_ORDER},
         barmode="group",
         text="percent",
         title="Yes/No distribution by cluster (%)",
@@ -223,17 +222,17 @@ def _fig_compare_bars(dcomp: pd.DataFrame) -> go.Figure:
     return fig
 
 def _fig_cluster_proportion(d: pd.DataFrame) -> go.Figure:
+    if "cluster_label" not in d.columns:
+        return go.Figure()
     counts = d["cluster_label"].value_counts(normalize=True).reset_index()
     counts.columns = ["cluster_label", "percent"]
     counts["percent"] = (counts["percent"] * 100).round(1)
 
-    order = [
-        "Young First-Timers",
-        "Older First-Timers",
-        "Engaged Re-contacts",
-        "Over-Contacted Non-Responders",
-    ]
-    counts["cluster_label"] = pd.Categorical(counts["cluster_label"], categories=order, ordered=True)
+    counts["cluster_label"] = pd.Categorical(
+        counts["cluster_label"],
+        categories=CLUSTER_ORDER,
+        ordered=True
+    )
     counts = counts.sort_values("cluster_label")
 
     fig = px.pie(
@@ -245,49 +244,6 @@ def _fig_cluster_proportion(d: pd.DataFrame) -> go.Figure:
         color="cluster_label",
         color_discrete_map=CLUSTER_COLOR_MAP
     )
-
-
-# def _fig_compare_sunburst(dcomp: pd.DataFrame) -> go.Figure:
-
-
-def show_profiles(data: pd.DataFrame):
-
-    """
-    One single donut-like chart:
-    - Inner ring = clusters (each fixed to 100)
-    - Outer ring = yes/no percentages within each cluster
-    """
-    # Compute yes/no % within each cluster (no risky reset_index on Series)
-    counts = dcomp.groupby(["cluster_label", "y"], as_index=False).size()
-    totals = counts.groupby("cluster_label")["size"].transform("sum")
-    counts["percent"] = (100.0 * counts["size"] / totals).round(1)
-
-    # Build sunburst tree rows: cluster parents (100), then y children (percent)
-    labels, parents, values = [], [], []
-
-    # Add one root to keep it a single donut
-    root = "All clusters"
-    labels.append(root); parents.append(""); values.append(0)  # value ignored for root
-
-    for cl in sorted(counts["cluster_label"].unique()):
-        labels.append(cl); parents.append(root); values.append(100)  # each cluster fixed to 100
-        sub = counts[counts["cluster_label"] == cl]
-        for _, row in sub.iterrows():
-            labels.append(row["y"])
-            parents.append(cl)
-            values.append(row["percent"])
-
-    fig = go.Figure(go.Sunburst(
-        labels=labels,
-        parents=parents,
-        values=values,
-        branchvalues="total",
-        maxdepth=2,
-        insidetextorientation="radial",
-        hovertemplate="%{label}<br>%{value:.1f}%",
-    ))
-    fig.update_layout(title="Compare clusters — y (yes/no) % per cluster", margin=dict(t=60, l=0, r=0, b=0))
-
     return fig
 
 # -------------------- PUBLIC ENTRY --------------------
@@ -296,48 +252,36 @@ def show_profiles(df: pd.DataFrame):
 
     with st.expander("Show Profiles", expanded=True):
         cols = st.columns(2)
-        order = [
-            "Young First-Timers",
-            "Engaged Re-contacts",
-            "Older First-Timers",
-            "Over-Contacted Non-Responders",
-        ]
-        for i, name in enumerate(order):
+        for i, name in enumerate(CLUSTER_ORDER):
             with cols[i % 2]:
                 img = IMAGE_MAP.get(name)
-                if img:
-                    p = ASSETS_DIR / img
-                    try:
-                        # 🔹 Images uniformes et centrées
-                        st.markdown(
-                            f"<div style='text-align:center;'><img src='file://{p}' height='230'></div>",
-                            unsafe_allow_html=True
-                        )
-                        st.caption(name)
-                    except Exception:
-                        st.info(f"Add image at: assets/{img}")
+                p = ASSETS_DIR / img if img else None
+                if p and p.exists():
+                    st.image(str(p), caption=name, use_container_width=True)
+                else:
+                    st.info(f"Add image at: assets/{img}")
                 st.write(PERSONA_DESC.get(name, ""))
 
-    # Ensure clusters
+    if df is None or df.empty:
+        st.error("No data to display.")
+        return
+
     df2 = _assign_clusters_farah(df)
     if "cluster_label" not in df2.columns:
         st.error("Could not create clusters. Please verify the dataset has the required columns.")
         return
 
     st.divider()
-
-    # -------- Controls --------
     mode = st.radio("Mode", ["Compare clusters", "Single cluster"], horizontal=True, index=0)
     labels = sorted(df2["cluster_label"].unique().tolist())
 
     if mode == "Compare clusters":
         st.subheader("Cluster comparison (all 4 shown)")
         dcomp = df2.copy()
-        st.plotly_chart(_fig_cluster_proportion(df2), use_container_width=True)
+        st.plotly_chart(_fig_cluster_proportion(dcomp), use_container_width=True)
         st.plotly_chart(_fig_compare_bars(dcomp), use_container_width=True)
         return
 
-    # ----- Single cluster mode -----
     chosen = st.selectbox("Choose a cluster", labels, index=0)
     dsel = df2[df2["cluster_label"] == chosen].copy()
     if dsel.empty:
