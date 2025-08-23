@@ -1,9 +1,20 @@
 import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import pathlib
 import streamlit as st
 import plotly.express as px
 import pickle
 import pandas as pd
+import openai
+from dotenv import load_dotenv
+from src.getdata_utils import load_data
+from faker import Faker
+
+load_dotenv()
+
+openai.api_key = os.getenv("openai_api_key")
+# openai.api_key = st.secrets["openai_api_key"]
 
 # Add project root to sys.path
 project_root = pathlib.Path(__file__).parent.parent.resolve()
@@ -19,11 +30,8 @@ def load_model():
     return model
 
 def color_prediction(pred):
-    """Return HTML span with color for prediction."""
-    if pred == "Will Invest":
-        return f"<span style='color:green; font-weight:bold;'>✅ {pred}</span>"
-    else:
-        return f"<span style='color:red; font-weight:bold;'>❌ {pred}</span>"
+    """Return only check or cross depending on prediction."""
+    return "✅" if pred == "Will Invest" else "❌"
 
 # ---------- UI for Single Client Prediction ----------
 def single_client_ui(model, threshold):
@@ -84,49 +92,204 @@ def single_client_ui(model, threshold):
         proba = model.predict_proba(input_data)[0][1]
 
         if proba >= threshold:
-            st.markdown("<h3 style='color:green;'>✅ Will Invest</h3>", unsafe_allow_html=True)
+            st.markdown("<h3 style='color:green;'>✅ Above Threshold</h3>", unsafe_allow_html=True)
         else:
-            st.markdown("<h3 style='color:red;'>❌ Will Not Invest</h3>", unsafe_allow_html=True)
+            st.markdown("<h3 style='color:red;'>❌ Below Threshold</h3>", unsafe_allow_html=True)
 
         st.info(f"Probability of Investing: {proba:.2%}")
         st.info(f"Threshold used: {threshold:.2%}")
+
+        # ---- ChatGPT Integration ----
+        df_str = input_data.to_csv(index=False)
+
+        system_prompt = """
+        You are a highly experienced and successful bank representative,
+        specialized in investments, with a proven track record of helping clients achieve
+        their financial goals while always acting in their best interest.
+        You are empathetic, trustworthy, and persuasive in your communication. The name of our bank is 'LeWagon'.
+        """
+
+        user_prompt = f"""
+        Here is the customer data:
+        {df_str}
+
+        Please generate a short personalized call script (2 paragraphs) for this client,
+        highlighting their situation and suggesting why an investment is a good fit?
+        """
+
+        try:
+            response = openai.chat.completions.create(
+                model="gpt-4.1-mini",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                max_tokens=300
+            )
+            script = response.choices[0].message.content
+            st.subheader("Personalized Script")
+            st.write(script)
+
+        except Exception as e:
+            st.error(f"Error generating script: {e}")
 
 # ---------- UI for Bulk CSV Prediction ----------
 def bulk_csv_ui(model, threshold):
     st.write("### 📂 Upload CSV for Bulk Prediction")
     uploaded_file = st.file_uploader("Upload a CSV file", type=["csv"])
     if uploaded_file:
-        df = pd.read_csv(uploaded_file)
-        probabilities = model.predict_proba(df)[:, 1]
+
+        # Load data
+        X, y = load_data(filepath=uploaded_file)
+        probabilities = model.predict_proba(X)[:, 1]
         predictions = ["Will Invest" if p >= threshold else "Will Not Invest" for p in probabilities]
 
-        df["Prediction"] = predictions
-        df["Probability"] = [f"{p:.2%}" for p in probabilities]
+        X["Prediction"] = predictions
+        X["Probability"] = probabilities  # keep numeric for sorting
 
-        df_display = df.copy()
-        df_display["Prediction"] = [color_prediction(pred) for pred in df["Prediction"]]
+        # --- Generate random names & phone numbers (CACHED) ---
+        data_hash = hash(str(X.index.tolist() + X.columns.tolist()))
+        if f"names_{data_hash}" not in st.session_state:
+            fake = Faker()
+            fake.seed_instance(42)
+            st.session_state[f"names_{data_hash}"] = [fake.name() for _ in range(len(X))]
+            st.session_state[f"phones_{data_hash}"] = [f"(514)-{fake.random_int(100, 999)}-{fake.random_int(1000, 9999)}" for _ in range(len(X))]
 
-        st.write("### Results")
-        st.write(df_display.to_html(escape=False), unsafe_allow_html=True)
+        X["Name"] = st.session_state[f"names_{data_hash}"]
+        X["Phone"] = st.session_state[f"phones_{data_hash}"]
 
-        csv_download = df.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="📥 Download Predictions as CSV",
-            data=csv_download,
-            file_name="predictions.csv",
-            mime="text/csv"
-        )
+        # Sort descending by probability
+        X.sort_values(by="Probability", ascending=False, inplace=True)
+
+        # Probability of at least one success
+        prob_no_investment = 1
+        for prob in probabilities:
+            prob_no_investment *= (1 - prob)
+        prob_at_least_one = 1 - prob_no_investment
+
+        # Additional metrics
+        total_customers = len(X)
+        predicted_investors = sum([1 for pred in predictions if pred == "Will Invest"])
+        avg_probability = probabilities.mean()
+
+        # Display metrics
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Probability of Success", f"{prob_at_least_one:.1%}")
+        with col2:
+            st.metric("Investors Above Threshold", f"{predicted_investors}/{total_customers}")
+        with col3:
+            st.metric("Average Probability", f"{avg_probability:.1%}")
+
+        # Format for display
+        df_display = X.copy()
+        df_display["Prediction"] = [color_prediction(pred) for pred in df_display["Prediction"]]
+        df_display["Probability"] = df_display["Probability"].apply(lambda p: f"{p:.2%}")
+
+        st.write("### 🎯 Results")
+        st.dataframe(df_display[["Name", "Phone", "Prediction", "Probability"]], hide_index=True)
+
+        # Download button
+        csv_download = X[["Name","Phone","age","job","marital","education","balance","housing","loan","Prediction","Probability"]].to_csv(index=False).encode('utf-8')
+        st.download_button(label="💾 Download Predictions", data=csv_download, file_name="predictions.csv", mime="text/csv")
+
+        # Optional ChatGPT scripts generation
+        if st.button(" Generate Personalized Scripts", type="primary"):
+            st.markdown("""
+            <style>
+            div.stButton > button:first-child {
+                background-color: #28a745;
+                color: white;
+                border-color: #28a745;
+            }
+            div.stButton > button:first-child:hover {
+                background-color: #218838;
+                border-color: #1e7e34;
+            }
+            </style>
+            """, unsafe_allow_html=True)
+
+            scripts_key = f"scripts_{data_hash}_{threshold}"
+            if scripts_key not in st.session_state:
+                st.write("### Generating Personalized Scripts...")
+                scripts = []
+
+                system_prompt = """
+                You are a friendly and professional bank representative from 'LeWagon',
+                specialized in investments, with a genuine desire to help clients achieve
+                their financial goals. You are empathetic, trustworthy, and warm in your communication.
+                Use light, friendly humor that's appropriate and respectful - think gentle wit rather than
+                anything that could be perceived as making fun of the customer. Keep the tone positive,
+                encouraging, and supportive throughout.
+                """
+
+                progress_bar = st.progress(0)
+                for i, (idx, row) in enumerate(X.iterrows()):
+                    customer_data = row[["age","job","marital","education","housing","loan"]].to_dict()
+                    customer_str = ", ".join([f"{k}: {v}" for k,v in customer_data.items()])
+                    user_prompt = f"""
+                    Here is the customer data for {row['Name']}:
+                    {customer_str}
+
+                    Please generate a short personalized call script (2 paragraphs) for this client,
+                    highlighting their situation and suggesting why an investment opportunity might be beneficial for them.
+                    Use gentle, friendly humor that's warm and respectful.
+                    Use the customer's name: {row['Name']}.
+                    IMPORTANT: Do not mention account balances, specific dollar amounts, or financial details.
+                    """
+
+                    try:
+                        response = openai.chat.completions.create(
+                            model="gpt-4o-mini",
+                            messages=[
+                                {"role": "system", "content": system_prompt},
+                                {"role": "user", "content": user_prompt}
+                            ],
+                            max_tokens=300,
+                            temperature=0.7
+                        )
+                        scripts.append(response.choices[0].message.content)
+                    except Exception as e:
+                        st.error(f"Error generating script for {row['Name']}: {e}")
+                        scripts.append(f"Script generation failed: {str(e)}")
+
+                    progress_bar.progress((i+1)/len(X))
+
+                st.session_state[scripts_key] = scripts
+            else:
+                st.success("Using cached scripts!")
+
+            X["Script"] = st.session_state[scripts_key]
+
+            st.write("#### Top 3 Prospects")
+            top_3_display = df_display.head(3)
+            for i, (idx, row) in enumerate(top_3_display.iterrows()):
+                with st.expander(f"Script for {row['Name']} ({row['Prediction']} - {row['Probability']})"):
+                    st.write(X.loc[idx,"Script"])
+
+            csv_download_with_scripts = X.to_csv(index=False).encode('utf-8')
+            st.download_button(label="💾 Download ALL Predictions with Scripts",
+                               data=csv_download_with_scripts,
+                               file_name="all_predictions_with_scripts.csv",
+                               mime="text/csv")
+
+        if st.button("🗑️ Clear Cached Data"):
+            keys_to_remove = [key for key in st.session_state.keys() if str(data_hash) in key]
+            for key in keys_to_remove:
+                del st.session_state[key]
+            st.success("Cached data cleared! Refresh to generate new names.")
+            st.experimental_rerun()
 
 # ---------- Main Prediction Page ----------
 def show_prediction():
     st.title("Customer Investment Prediction")
     model = load_model()
 
-    # Single slider for threshold used across both single client & bulk
-    threshold = st.slider("Adjust investment threshold", 0.0, 1.0, 0.5, 0.01)
+    # Sidebar selection
+    mode = st.sidebar.selectbox("Select Mode", ["Single Client", "Bulk CSV"])
+    threshold = st.sidebar.slider("Adjust investment threshold", 0.0, 0.10, 0.035, 0.01)
 
-    uploaded_file = st.file_uploader("Upload CSV for Bulk Prediction", type=["csv"])
-    if uploaded_file:
-        bulk_csv_ui(model, threshold)
-    else:
+    if mode == "Single Client":
         single_client_ui(model, threshold)
+    else:
+        bulk_csv_ui(model, threshold)

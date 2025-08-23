@@ -1,10 +1,13 @@
+
 # streamlit/eda_profiles.py
 import warnings
 warnings.filterwarnings("ignore")
-
 from pathlib import Path
 import numpy as np
 import pandas as pd
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
@@ -188,6 +191,10 @@ def _summary_badge(d: pd.DataFrame):
     st.caption(f"**Yearly Balance** — Low: {vc['Low']:.1f}% • Medium: {vc['Medium']:.1f}% • High: {vc['High']:.1f}%")
 
 def _fig_compare_sunburst(dcomp: pd.DataFrame) -> go.Figure:
+
+
+def show_profiles(data: pd.DataFrame):
+
     """
     One single donut-like chart:
     - Inner ring = clusters (each fixed to 100)
