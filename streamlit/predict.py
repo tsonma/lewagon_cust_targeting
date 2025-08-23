@@ -34,8 +34,11 @@ def color_prediction(pred):
     return "✅" if pred == "Will Invest" else "❌"
 
 # ---------- UI for Single Client Prediction ----------
-def single_client_ui(model, threshold):
-    st.write("### ✏️ Enter Single Customer Information")
+def single_client_ui(model):
+    st.write("### Input Client Information")
+
+    # Client name input (for script personalization only)
+    client_name = st.text_input("Client Name", placeholder="Enter client's name for personalized script")
 
     col1, col2 = st.columns(2)
     age = col1.number_input("Age", min_value=18, max_value=100, value=30)
@@ -70,73 +73,81 @@ def single_client_ui(model, threshold):
         previous = col2.number_input("Number of contacts before this campaign", min_value=0, max_value=50, value=0)
         poutcome = col3.selectbox("Outcome of previous campaign", ["failure", "unknown", "success"])
 
-    if st.button("Predict for Single Client"):
-        input_data = pd.DataFrame([{
-            "age": age,
-            "job": job,
-            "marital": marital,
-            "education": education,
-            "default": default,
-            "balance": balance,
-            "housing": housing,
-            "loan": loan,
-            "contact": contact,
-            "day": day,
-            "month": month,
-            "campaign": campaign,
-            "pdays": pdays,
-            "previous": previous,
-            "poutcome": poutcome
-        }])
+    # Store inputs
+    input_data = pd.DataFrame([{
+        "age": age,
+        "job": job,
+        "marital": marital,
+        "education": education,
+        "default": default,
+        "balance": balance,
+        "housing": housing,
+        "loan": loan,
+        "contact": contact,
+        "day": day,
+        "month": month,
+        "campaign": campaign,
+        "pdays": pdays,
+        "previous": previous,
+        "poutcome": poutcome
+    }])
 
+    # Prediction button
+    if st.button("Predict for Single Client"):
         proba = model.predict_proba(input_data)[0][1]
 
-        if proba >= threshold:
-            st.markdown("<h3 style='color:green;'>✅ Above Threshold</h3>", unsafe_allow_html=True)
-        else:
-            st.markdown("<h3 style='color:red;'>❌ Below Threshold</h3>", unsafe_allow_html=True)
+        # Store input data, prediction result, AND client name in session_state
+        st.session_state["last_input"] = input_data
+        st.session_state["last_prediction"] = proba
+        st.session_state["client_name"] = client_name
 
-        st.info(f"Probability of Investing: {proba:.2%}")
-        st.info(f"Threshold used: {threshold:.2%}")
+    # Display prediction result if it exists (even after rerun)
+    if "last_prediction" in st.session_state:
+        st.info(f"Probability of Investing: {st.session_state['last_prediction']:.2%}")
 
-        # ---- ChatGPT Integration ----
-        df_str = input_data.to_csv(index=False)
+    # Script button (only shows up if prediction has been made)
+    if "last_input" in st.session_state:
+        if st.button("Generate Personalized Script"):
+            df_str = st.session_state["last_input"].to_csv(index=False)
 
-        system_prompt = """
-        You are a highly experienced and successful bank representative,
-        specialized in investments, with a proven track record of helping clients achieve
-        their financial goals while always acting in their best interest.
-        You are empathetic, trustworthy, and persuasive in your communication. The name of our bank is 'LeWagon'.
-        """
+            system_prompt = """
+            You are a highly experienced and successful bank representative,
+            specialized in investments, with a proven track record of helping clients achieve
+            their financial goals while always acting in their best interest.
+            You are empathetic, trustworthy, and persuasive in your communication.
+            The name of our bank is 'LeWagon'.
+            """
 
-        user_prompt = f"""
-        Here is the customer data:
-        {df_str}
+            user_prompt = f"""
+            Here is the customer data:
+            {df_str}
 
-        Please generate a short personalized call script (2 paragraphs) for this client,
-        highlighting their situation and suggesting why an investment is a good fit?
-        """
+            Client name: {st.session_state.get('client_name', 'N/A')}
 
-        try:
-            response = openai.chat.completions.create(
-                model="gpt-4.1-mini",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
-                max_tokens=300
-            )
-            script = response.choices[0].message.content
-            st.subheader("Personalized Script")
-            st.write(script)
+            Please generate a short personalized call script (2 paragraphs) for this client,
+            highlighting their situation and suggesting why an investment is a good fit.
+            If a client name is provided, please use it naturally in the script.
+            """
 
-        except Exception as e:
-            st.error(f"Error generating script: {e}")
+            try:
+                response = openai.chat.completions.create(
+                    model="gpt-4.1-mini",
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt}
+                    ],
+                    max_tokens=300
+                )
+                script = response.choices[0].message.content
+                st.subheader("Personalized Script")
+                st.write(script)
+
+            except Exception as e:
+                st.error(f"Error generating script: {e}")
 
 # ---------- UI for Bulk CSV Prediction ----------
 def bulk_csv_ui(model, threshold):
-    st.write("### 📂 Upload CSV for Bulk Prediction")
-    uploaded_file = st.file_uploader("Upload a CSV file", type=["csv"])
+    uploaded_file = st.file_uploader("Upload a CSV file for the Prediction of Multiple Clients", type=["csv"])
     if uploaded_file:
 
         # Load data
@@ -187,10 +198,10 @@ def bulk_csv_ui(model, threshold):
         df_display["Probability"] = df_display["Probability"].apply(lambda p: f"{p:.2%}")
 
         st.write("### 🎯 Results")
-        st.dataframe(df_display[["Name", "Phone", "Prediction", "Probability"]], hide_index=True)
+        st.dataframe(df_display[["Name", "Phone", "Probability"]], hide_index=True)
 
         # Download button
-        csv_download = X[["Name","Phone","age","job","marital","education","balance","housing","loan","Prediction","Probability"]].to_csv(index=False).encode('utf-8')
+        csv_download = X[["Name","Phone","age","job","marital","education","balance","housing","loan","Probability"]].to_csv(index=False).encode('utf-8')
         st.download_button(label="💾 Download Predictions", data=csv_download, file_name="predictions.csv", mime="text/csv")
 
         # Optional ChatGPT scripts generation
@@ -282,14 +293,26 @@ def bulk_csv_ui(model, threshold):
 
 # ---------- Main Prediction Page ----------
 def show_prediction():
-    st.title("Customer Investment Prediction")
     model = load_model()
 
     # Sidebar selection
-    mode = st.sidebar.selectbox("Select Mode", ["Single Client", "Bulk CSV"])
-    threshold = st.sidebar.slider("Adjust investment threshold", 0.0, 0.10, 0.035, 0.01)
+    mode = st.sidebar.selectbox("Select Mode", ["Single Client", "Multiple Clients"])
+
+    # Dynamic title based on selected mode
+    if mode == "Single Client":
+        st.title("Prediction - Single Client")
+    else:
+        st.title("Prediction - Multiple Clients")
+
+    # Only show threshold slider for Multiple Clients
+    threshold = None
+    if mode == "Multiple Clients":
+        threshold = st.sidebar.slider(
+            "Adjust investment threshold",
+            0.0, 0.10, 0.035, 0.01
+        )
 
     if mode == "Single Client":
-        single_client_ui(model, threshold)
+        single_client_ui(model)
     else:
         bulk_csv_ui(model, threshold)
