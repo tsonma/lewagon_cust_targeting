@@ -9,8 +9,8 @@ linkColor = "#4A90E2"                 # Matches primary accent for consistency
 linkUnderline = false                 # Minimalist link styling
 codeBackgroundColor = "#EDF2F7"       # Light gray code blocks for contrast
 
-font = "serif"
-headingFont = "serif"
+font = "sans-serif"
+headingFont = "sans-serif"
 codeFont = "monospace"
 
 baseFontSize = 16
@@ -33,6 +33,6 @@ textColor = "#2A3A45"
 linkColor = "#4A90E2"
 linkUnderline = false
 codeBackgroundColor = "#E8EDF2"
-font = "serif"
-headingFont = "serif"
+font = "sans-serif"
+headingFont = "sans-serif"
 codeFont = "monospace"

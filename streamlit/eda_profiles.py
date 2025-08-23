@@ -107,6 +107,8 @@ def _fit_kmeans_pipeline(df: pd.DataFrame):
     pipe = Pipeline(steps=[("preprocessor", pre), ("clusterer", kmeans)])
     return pipe, num_features, cat_features
 
+# --- THE KEY CHANGE IS HERE ---
+@st.cache_data(show_spinner="Running K-Means Clustering...")
 def _assign_clusters_farah(df: pd.DataFrame) -> pd.DataFrame:
     df = _derive_helper_cols(df)
     if "cluster_label" in df.columns:
@@ -266,6 +268,7 @@ def show_profiles(df: pd.DataFrame):
         st.error("No data to display.")
         return
 
+    # Call the cached function here. This will be fast on subsequent runs.
     df2 = _assign_clusters_farah(df)
     if "cluster_label" not in df2.columns:
         st.error("Could not create clusters. Please verify the dataset has the required columns.")
@@ -276,7 +279,7 @@ def show_profiles(df: pd.DataFrame):
     labels = sorted(df2["cluster_label"].unique().tolist())
 
     if mode == "Compare clusters":
-        st.subheader("Cluster comparison (all 4 shown)")
+        st.subheader("Cluster comparison")
         dcomp = df2.copy()
         st.plotly_chart(_fig_cluster_proportion(dcomp), use_container_width=True)
         st.plotly_chart(_fig_compare_bars(dcomp), use_container_width=True)
