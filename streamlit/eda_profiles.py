@@ -17,19 +17,27 @@ from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.cluster import KMeans
 
-# -------------------- (optional) gallery meta --------------------
+# -------------------- assets --------------------
 ASSETS_DIR = Path(__file__).parent / "assets"
 IMAGE_MAP = {
-    "Young First-Timers":             "profile_young_students.jpg",
-    "Engaged Re-contacts":            "profile_middle_loans.jpg",
-    "Older First-Timers":             "profile_retired_stable.jpg",
-    "Over-Contacted Non-Responders":  "profile_high_balance.jpg",
+    "Young First-Timers":             "Young_First_Timers.jpg",
+    "Engaged Re-contacts":            "Engaged_Re_contacts.jpg",
+    "Older First-Timers":             "Older_First_Timers.jpg",
+    "Over-Contacted Non-Responders":  "Over_Contacted_Non_Responders.jpg",
 }
 PERSONA_DESC = {
     "Young First-Timers": "Younger or new to campaigns; digital-first and curious.",
     "Engaged Re-contacts": "Previously contacted and engaged; follow-ups work well.",
     "Older First-Timers": "Older audience contacted for the first time; prefer clarity/trust.",
     "Over-Contacted Non-Responders": "Fatigued by many contacts; low conversion.",
+}
+
+# Palette alignée
+CLUSTER_COLOR_MAP = {
+    "Young First-Timers": "#9ecae1",            # bleu clair
+    "Older First-Timers": "#2171b5",           # bleu foncé
+    "Engaged Re-contacts": "#fbb4ae",          # rose clair
+    "Over-Contacted Non-Responders": "#e41a1c" # rouge vif
 }
 
 # -------------------- helpers --------------------
@@ -57,7 +65,6 @@ def _derive_helper_cols(df: pd.DataFrame) -> pd.DataFrame:
 
 @st.cache_resource(show_spinner=False)
 def _fit_kmeans_pipeline(df: pd.DataFrame):
-    """Farah-style preprocessing + KMeans(4). Returns (pipeline, num_cols, cat_cols) or (None, [], [])."""
     df = _derive_helper_cols(df)
 
     num_features = [c for c in [
@@ -92,7 +99,6 @@ def _fit_kmeans_pipeline(df: pd.DataFrame):
     return pipe, num_features, cat_features
 
 def _assign_clusters_farah(df: pd.DataFrame) -> pd.DataFrame:
-    """Attach 'cluster' + 'cluster_label' if missing, using the Farah-style pipeline."""
     df = _derive_helper_cols(df)
     if "cluster_label" in df.columns:
         return df
@@ -119,18 +125,6 @@ def _assign_clusters_farah(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 # -------------------- chart builders --------------------
-def _kpi_row(d: pd.DataFrame):
-    c1, c2, c3, c4 = st.columns(4)
-    total = len(d)
-    conv = (d["y"] == "yes").mean() * 100 if "y" in d.columns else np.nan
-    prev_contacted = (d.get("No_Previous_contact", pd.Series([1]*len(d))) == 0).mean() * 100
-    multi_calls = (d.get("campaign", pd.Series([0]*len(d))) > 1).mean() * 100
-
-    c1.metric("Rows", f"{total:,}")
-    c2.metric("Conversion (y=yes)", f"{conv:.1f}%" if not np.isnan(conv) else "—")
-    c3.metric("Previously contacted", f"{prev_contacted:.1f}%")
-    c4.metric(">1 call this campaign", f"{multi_calls:.1f}%")
-
 def _fig_outcome(d: pd.DataFrame, title="Subscription Outcome (y)"):
     vc = d["y"].value_counts(normalize=True).reindex(["no", "yes"], fill_value=0) * 100
     plot_df = pd.DataFrame({"y": vc.index, "percent": vc.values})
@@ -183,12 +177,75 @@ def _fig_edu_percent(d: pd.DataFrame):
     fig.update_xaxes(range=[0, 100], title="Percent")
     return fig
 
-def _summary_badge(d: pd.DataFrame):
-    if "yearly_balance" not in d.columns:
-        return
-    vc = (d["yearly_balance"].value_counts(normalize=True)
-          .reindex(["Low","Medium","High"], fill_value=0) * 100).round(1)
-    st.caption(f"**Yearly Balance** — Low: {vc['Low']:.1f}% • Medium: {vc['Medium']:.1f}% • High: {vc['High']:.1f}%")
+def _fig_month(d: pd.DataFrame):
+    if "month" not in d.columns:
+        return go.Figure()
+    month_counts = d["month"].value_counts().sort_index()
+    fig = px.bar(
+        month_counts,
+        x=month_counts.index,
+        y=month_counts.values,
+        title="Number of Contacts by Month",
+        labels={"x": "Month", "y": "Contacts"},
+        color=month_counts.values,
+        color_continuous_scale="Blues"
+    )
+    return fig
+
+# -------------------- compare charts --------------------
+def _fig_compare_bars(dcomp: pd.DataFrame) -> go.Figure:
+    if "y" not in dcomp.columns:
+        return go.Figure()
+    counts = dcomp.groupby(["cluster_label", "y"]).size().reset_index(name="count")
+    totals = counts.groupby("cluster_label")["count"].transform("sum")
+    counts["percent"] = (100.0 * counts["count"] / totals).round(1)
+
+    order = [
+        "Young First-Timers",
+        "Older First-Timers",
+        "Engaged Re-contacts",
+        "Over-Contacted Non-Responders",
+    ]
+    fig = px.bar(
+        counts,
+        x="cluster_label",
+        y="percent",
+        color="y",
+        category_orders={"cluster_label": order},
+        barmode="group",
+        text="percent",
+        title="Yes/No distribution by cluster (%)",
+        color_discrete_map={"yes": "#66c2a5", "no": "#fc8d62"}
+    )
+    fig.update_traces(texttemplate="%{y:.1f}%", textposition="outside")
+    fig.update_yaxes(range=[0, 100], title="Percent")
+    fig.update_layout(legend_title="Outcome")
+    return fig
+
+def _fig_cluster_proportion(d: pd.DataFrame) -> go.Figure:
+    counts = d["cluster_label"].value_counts(normalize=True).reset_index()
+    counts.columns = ["cluster_label", "percent"]
+    counts["percent"] = (counts["percent"] * 100).round(1)
+
+    order = [
+        "Young First-Timers",
+        "Older First-Timers",
+        "Engaged Re-contacts",
+        "Over-Contacted Non-Responders",
+    ]
+    counts["cluster_label"] = pd.Categorical(counts["cluster_label"], categories=order, ordered=True)
+    counts = counts.sort_values("cluster_label")
+
+    fig = px.pie(
+        counts,
+        names="cluster_label",
+        values="percent",
+        hole=0.35,
+        title="Overall cluster proportions (%)",
+        color="cluster_label",
+        color_discrete_map=CLUSTER_COLOR_MAP
+    )
+
 
 # def _fig_compare_sunburst(dcomp: pd.DataFrame) -> go.Figure:
 
@@ -230,21 +287,14 @@ def show_profiles(data: pd.DataFrame):
         hovertemplate="%{label}<br>%{value:.1f}%",
     ))
     fig.update_layout(title="Compare clusters — y (yes/no) % per cluster", margin=dict(t=60, l=0, r=0, b=0))
+
     return fig
 
 # -------------------- PUBLIC ENTRY --------------------
 def show_profiles(df: pd.DataFrame):
-    """
-    One consolidated page:
-      - (optional) persona gallery (collapsed)
-      - KMeans(Farah) clusters if needed
-      - Mode:
-          * Single cluster: KPIs + interactive tabs
-          * Compare clusters: single donut-like chart (sunburst) showing yes/no % per cluster
-    """
     st.title("👥 Profiles Explorer")
 
-    with st.expander("Show persona gallery (images + short descriptions)", expanded=False):
+    with st.expander("Show Profiles", expanded=True):
         cols = st.columns(2)
         order = [
             "Young First-Timers",
@@ -258,7 +308,12 @@ def show_profiles(df: pd.DataFrame):
                 if img:
                     p = ASSETS_DIR / img
                     try:
-                        st.image(str(p), caption=name, use_container_width=True)
+                        # 🔹 Images uniformes et centrées
+                        st.markdown(
+                            f"<div style='text-align:center;'><img src='file://{p}' height='230'></div>",
+                            unsafe_allow_html=True
+                        )
+                        st.caption(name)
                     except Exception:
                         st.info(f"Add image at: assets/{img}")
                 st.write(PERSONA_DESC.get(name, ""))
@@ -272,28 +327,14 @@ def show_profiles(df: pd.DataFrame):
     st.divider()
 
     # -------- Controls --------
-    mode = st.radio("Mode", ["Single cluster", "Compare clusters"], horizontal=True)
+    mode = st.radio("Mode", ["Compare clusters", "Single cluster"], horizontal=True, index=0)
     labels = sorted(df2["cluster_label"].unique().tolist())
 
     if mode == "Compare clusters":
-        chosen = st.multiselect("Choose clusters to compare", labels, default=labels[:3])
-        if not chosen:
-            st.info("Select at least one cluster.")
-            return
-        dcomp = df2[df2["cluster_label"].isin(chosen)].copy()
-
-        # KPIs per selected cluster (just size + conversion)
-        st.subheader("KPIs by cluster")
-        cols = st.columns(len(chosen))
-        for i, lbl in enumerate(chosen):
-            dd = dcomp[dcomp["cluster_label"] == lbl]
-            with cols[i]:
-                st.metric(lbl, f"{len(dd):,} rows")
-                if "y" in dd.columns:
-                    st.caption(f"Conv: {(dd['y']=='yes').mean()*100:.1f}%")
-
-        st.subheader("Yes/No distribution (one chart)")
-        st.plotly_chart(_fig_compare_sunburst(dcomp), use_container_width=True)
+        st.subheader("Cluster comparison (all 4 shown)")
+        dcomp = df2.copy()
+        st.plotly_chart(_fig_cluster_proportion(df2), use_container_width=True)
+        st.plotly_chart(_fig_compare_bars(dcomp), use_container_width=True)
         return
 
     # ----- Single cluster mode -----
@@ -303,11 +344,8 @@ def show_profiles(df: pd.DataFrame):
         st.info("No data for this selection.")
         return
 
-    _kpi_row(dsel)
-    _summary_badge(dsel)
-
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(
-        ["Outcome", "Age", "Loans", "Housing", "Jobs & Education"]
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
+        ["Outcome", "Age", "Loans", "Housing", "Jobs & Education", "Month"]
     )
     with tab1:
         st.plotly_chart(_fig_outcome(dsel), use_container_width=True)
@@ -321,3 +359,5 @@ def show_profiles(df: pd.DataFrame):
         top_n = st.slider("Show top N jobs", 3, 15, 10)
         st.plotly_chart(_fig_top_jobs(dsel, top_n=top_n), use_container_width=True)
         st.plotly_chart(_fig_edu_percent(dsel), use_container_width=True)
+    with tab6:
+        st.plotly_chart(_fig_month(dsel), use_container_width=True)
