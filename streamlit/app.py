@@ -1,23 +1,22 @@
-# streamlit/app.py
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-import io
-from pathlib import Path
-import pandas as pd
 import streamlit as st
+import pandas as pd
+from pathlib import Path
+import io
 
-from eda_profiles import show_profiles          # onglet 👥 Profiles
-from predict import show_prediction              # onglet 🔮 Prediction (déjà existant)
+from eda_profiles import show_profiles   # consolidated profiles page (with clustering)
+from predict import show_prediction      # your existing prediction page
 
 # ---------- Expected columns for validation ----------
 REQUIRED_COLUMNS = [
-    "age", "job", "marital", "education", "default", "balance",
-    "housing", "loan", "contact", "day", "month", "campaign",
-    "pdays", "previous", "poutcome", "y"
+    'age', 'job', 'marital', 'education', 'default', 'balance',
+    'housing', 'loan', 'contact', 'day', 'month', 'campaign',
+    'pdays', 'previous', 'poutcome', 'y'
 ]
 
+# ---------- Data loader and validation ----------
 @st.cache_data
 def load_default_data() -> pd.DataFrame:
     """Load the default bank dataset"""
@@ -34,103 +33,143 @@ def validate_csv_structure(df: pd.DataFrame) -> tuple[bool, list]:
     return len(missing_cols) == 0, missing_cols
 
 def load_uploaded_csv(uploaded_file) -> pd.DataFrame:
-    """Load and validate uploaded CSV file (try common separators)"""
+    """Load and validate uploaded CSV file"""
     try:
-        content = uploaded_file.getvalue().decode("utf-8")
+        # Try different separators
+        content = uploaded_file.getvalue().decode('utf-8')
 
-        for sep in (";", ",", "\t"):
-            try:
-                df = pd.read_csv(io.StringIO(content), sep=sep)
-                if sep != ";" or len(df.columns) > 1:
-                    return df
-            except Exception:
-                pass
+        # First try semicolon separator (like bank-full.csv)
+        try:
+            df = pd.read_csv(io.StringIO(content), sep=';')
+            if len(df.columns) > 1:  # Successfully parsed with semicolon
+                return df
+        except:
+            pass
+
+        # Try comma separator
+        try:
+            df = pd.read_csv(io.StringIO(content), sep=',')
+            return df
+        except:
+            pass
+
+        # Try tab separator
+        try:
+            df = pd.read_csv(io.StringIO(content), sep='\t')
+            return df
+        except:
+            pass
+
+        # If all fail, raise error
         raise ValueError("Could not parse CSV with common separators")
+
     except Exception as e:
-        st.error(f"Error reading CSV file: {e}")
+        st.error(f"Error reading CSV file: {str(e)}")
         return pd.DataFrame()
 
-# ---------- Home / Upload ----------
 def show_home_page():
+    """Home page with file upload functionality"""
     st.title("🏦 Investment Prediction App")
     st.markdown("Upload your customer dataset to get started.")
 
+    # File upload section
     st.subheader("📁 Upload Dataset")
+
     uploaded_file = st.file_uploader(
         "Choose a CSV file",
-        type=["csv"],
+        type=['csv'],
         help="Upload your customer dataset in CSV format"
     )
-    use_sample = st.button("Use Sample Data", type="secondary")
 
+    # Handle file upload
     if uploaded_file is not None:
         with st.spinner("Loading and validating your dataset..."):
             df = load_uploaded_csv(uploaded_file)
 
-        if not df.empty:
-            is_valid, missing_cols = validate_csv_structure(df)
-            if is_valid:
-                st.success(f"✅ Dataset loaded! ({len(df):,} rows, {len(df.columns)} columns)")
-                st.session_state["data"] = df
-                st.session_state["data_source"] = f"Uploaded: {uploaded_file.name}"
-                with st.expander("Preview Dataset"):
-                    st.dataframe(df.head(), use_container_width=True)
-                st.success("🎉 Data ready! Use the sidebar to navigate.")
-            else:
-                st.error("❌ Invalid CSV structure!")
-                st.write("Missing columns:", missing_cols)
+            if not df.empty:
+                # Validate structure
+                is_valid, missing_cols = validate_csv_structure(df)
 
-    elif use_sample:
-        with st.spinner("Loading sample dataset..."):
-            df = load_default_data()
-        if not df.empty:
-            st.success(f"✅ Sample dataset loaded! ({len(df):,} rows, {len(df.columns)} columns)")
-            st.session_state["data"] = df
-            st.session_state["data_source"] = "Sample: bank-full.csv"
-            st.success("🎉 Sample data ready! Use the sidebar to navigate.")
+                if is_valid:
+                    st.success(f"✅ Dataset loaded! ({len(df):,} rows, {len(df.columns)} columns)")
 
-    if "data" not in st.session_state or st.session_state["data"] is None:
-        st.info("Upload a CSV file or use sample data to get started.")
+                    # Store in session state
+                    st.session_state['data'] = df
+                    st.session_state['data_source'] = f"Uploaded: {uploaded_file.name}"
 
-# ---------- App entry ----------
+                    # Show preview
+                    with st.expander("Preview Dataset"):
+                        st.dataframe(df.head())
+
+                    st.success("🎉 Data ready! Use the sidebar to navigate.")
+
+                    # Start Analysis button
+                    st.markdown("---")
+                    col1, col2, col3 = st.columns([1, 1, 1])
+                    with col2:
+                        if st.button("Start Analysis", use_container_width=True):
+                            st.session_state['current_page'] = "👥 Profiles"
+                            st.rerun()
+
+                else:
+                    st.error("❌ Invalid CSV structure!")
+                    st.write("Missing columns:", missing_cols)
+
+    # Instructions when no data is loaded
+    if 'data' not in st.session_state or st.session_state['data'] is None:
+        st.info("Upload a CSV file to get started.")
+
 def main():
-    st.set_page_config(page_title="Customer Targeting", layout="wide")
+    # Initialize session state
+    if 'data' not in st.session_state:
+        st.session_state['data'] = None
+    if 'current_page' not in st.session_state:
+        st.session_state['current_page'] = "🏠 Home"
 
-    if "data" not in st.session_state:
-        st.session_state["data"] = None
+    # Sidebar navigation
+    st.sidebar.header("Navigation")
 
-    st.sidebar.header("🧭 Navigation")
-
-    data_available = (
-        st.session_state.get("data") is not None
-        and not st.session_state["data"].empty
-    )
-    if st.session_state.get("data_source") and data_available:
+    # Show data source if available
+    if 'data_source' in st.session_state and st.session_state['data'] is not None:
         st.sidebar.success(f"📊 Data: {st.session_state['data_source']}")
         st.sidebar.markdown("---")
 
-    # Menu (garder l’ordre établi par l’équipe)
+    # Navigation menu - check if we actually have data loaded
+    data_available = (st.session_state.get('data') is not None and
+                     not st.session_state['data'].empty)
+
     if data_available:
+        # Get the index of current page for selectbox
+        page_options = ["🏠 Home", "👥 Profiles", "🔮 Prediction"]
+        try:
+            current_index = page_options.index(st.session_state['current_page'])
+        except ValueError:
+            current_index = 0  # Default to Home if current_page is invalid
+
         page = st.sidebar.selectbox(
             "Choose a page",
-            ["🏠 Home", "👥 Profiles", "🔮 Prediction"],
-            index=0
+            page_options,
+            index=current_index,
+            key="page_selector"
         )
+
+        # Update current page in session state
+        st.session_state['current_page'] = page
+
     else:
         page = "🏠 Home"
+        st.session_state['current_page'] = "🏠 Home"
         st.sidebar.info("📁 Please upload data first to access other pages")
 
-    # Routing (on ne modifie que l’appel du tab Profiles)
+    # Page routing
     if page == "🏠 Home":
         show_home_page()
-
     elif page == "👥 Profiles":
         if data_available:
-            show_profiles(st.session_state["data"])
+            show_profiles(st.session_state['data'])
         else:
             st.warning("Please upload data first on the Home page")
             show_home_page()
-
     elif page == "🔮 Prediction":
         if data_available:
             show_prediction()
