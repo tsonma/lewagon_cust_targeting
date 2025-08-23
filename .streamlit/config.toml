@@ -1,0 +1,38 @@
+[theme]
+base = "light"
+
+primaryColor = "#4A90E2"              # Calm, soft blue accent (modern and approachable)
+backgroundColor = "#F7F9FB"           # Off-white, easy-on-the-eyes background
+secondaryBackgroundColor = "#E1E5EA"  # Gentle gray for sidebar/widgets
+textColor = "#333F4A"                 # Deep charcoal for clear readability
+linkColor = "#4A90E2"                 # Matches primary accent for consistency
+linkUnderline = false                 # Minimalist link styling
+codeBackgroundColor = "#EDF2F7"       # Light gray code blocks for contrast
+
+font = "serif"
+headingFont = "serif"
+codeFont = "monospace"
+
+baseFontSize = 16
+baseFontWeight = 400
+
+chartCategoricalColors = ["#4A90E2", "#50E3C2", "#F5A623", "#D0021B", "#B8E986"]
+chartSequentialColors = [
+  "#EDF2F7", "#D9E2EC", "#BCCCDC", "#9FB3C8",
+  "#829AB1", "#627D98", "#486581", "#334E68",
+  "#243B53", "#102A43"
+]
+
+showSidebarBorder = false
+
+[theme.sidebar]
+primaryColor = "#4A90E2"
+backgroundColor = "#F0F3F7"
+secondaryBackgroundColor = "#D6DBE1"
+textColor = "#2A3A45"
+linkColor = "#4A90E2"
+linkUnderline = false
+codeBackgroundColor = "#E8EDF2"
+font = "serif"
+headingFont = "serif"
+codeFont = "monospace"

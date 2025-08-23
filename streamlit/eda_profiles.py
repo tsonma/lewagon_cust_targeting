@@ -1,10 +1,13 @@
+
 # streamlit/eda_profiles.py
 import warnings
 warnings.filterwarnings("ignore")
-
 from pathlib import Path
 import numpy as np
 import pandas as pd
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
@@ -242,6 +245,49 @@ def _fig_cluster_proportion(d: pd.DataFrame) -> go.Figure:
         color="cluster_label",
         color_discrete_map=CLUSTER_COLOR_MAP
     )
+
+
+# def _fig_compare_sunburst(dcomp: pd.DataFrame) -> go.Figure:
+
+
+def show_profiles(data: pd.DataFrame):
+
+    """
+    One single donut-like chart:
+    - Inner ring = clusters (each fixed to 100)
+    - Outer ring = yes/no percentages within each cluster
+    """
+    # Compute yes/no % within each cluster (no risky reset_index on Series)
+    counts = dcomp.groupby(["cluster_label", "y"], as_index=False).size()
+    totals = counts.groupby("cluster_label")["size"].transform("sum")
+    counts["percent"] = (100.0 * counts["size"] / totals).round(1)
+
+    # Build sunburst tree rows: cluster parents (100), then y children (percent)
+    labels, parents, values = [], [], []
+
+    # Add one root to keep it a single donut
+    root = "All clusters"
+    labels.append(root); parents.append(""); values.append(0)  # value ignored for root
+
+    for cl in sorted(counts["cluster_label"].unique()):
+        labels.append(cl); parents.append(root); values.append(100)  # each cluster fixed to 100
+        sub = counts[counts["cluster_label"] == cl]
+        for _, row in sub.iterrows():
+            labels.append(row["y"])
+            parents.append(cl)
+            values.append(row["percent"])
+
+    fig = go.Figure(go.Sunburst(
+        labels=labels,
+        parents=parents,
+        values=values,
+        branchvalues="total",
+        maxdepth=2,
+        insidetextorientation="radial",
+        hovertemplate="%{label}<br>%{value:.1f}%",
+    ))
+    fig.update_layout(title="Compare clusters — y (yes/no) % per cluster", margin=dict(t=60, l=0, r=0, b=0))
+
     return fig
 
 # -------------------- PUBLIC ENTRY --------------------
