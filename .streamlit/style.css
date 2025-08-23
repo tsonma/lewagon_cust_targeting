@@ -1,0 +1,7 @@
+/* Replace the content of your .streamlit/style.css file with this */
+@import url('https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap');
+
+body, [data-testid="stAppViewContainer"] *,
+h1, h2, h3, h4, h5, h6 {
+    font-family: 'Lato', sans-serif !important;
+}

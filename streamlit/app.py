@@ -9,6 +9,15 @@ import io
 from eda_profiles import show_profiles
 from predict import show_prediction
 
+# ---------- Custom CSS Injection for Fonts ----------
+def local_css(file_name):
+    """Function to load and inject local CSS file."""
+    with open(file_name) as f:
+        st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
+
+# Call the function with the path to your CSS file
+local_css(".streamlit/style.css")
+
 # ---------- Expected columns for validation ----------
 REQUIRED_COLUMNS = [
     'age', 'job', 'marital', 'education', 'default', 'balance',
@@ -91,7 +100,7 @@ def show_home_page():
                 st.session_state['data'] = None
                 st.session_state['file_uploaded'] = False
 
-    # Only show the button if a valid file has been successfully uploaded
+    # This is the section that renders the button. It should be the only place.
     if st.session_state.get('file_uploaded'):
         st.success("🎉 Data ready! Click 'Start Analysis' to proceed to the Profiles page.")
         st.markdown("---")
@@ -103,6 +112,10 @@ def show_home_page():
     elif uploaded_file is None:
         st.info("Upload a CSV file to analyze customer profiles.")
 
+# This function is a simple, robust way to handle page transitions
+def handle_page_change():
+    st.session_state['current_page'] = st.session_state['page_selector']
+
 def main():
     # Initialize session state
     if 'data' not in st.session_state:
@@ -110,36 +123,30 @@ def main():
     if 'current_page' not in st.session_state:
         st.session_state['current_page'] = "🏠 Home"
 
-    # Sidebar navigation - always show all options
-    st.sidebar.header("🧭 Navigation")
-
+    # Sidebar navigation
+    st.sidebar.header("Navigation")
     page_options = ["🏠 Home", "👥 Profiles", "🔮 Prediction"]
-    try:
-        current_index = page_options.index(st.session_state['current_page'])
-    except ValueError:
-        current_index = 0
 
-    # The only line that has been changed
-    page = st.sidebar.selectbox(
+    # Use on_change to explicitly handle the page switch
+    st.sidebar.selectbox(
         "Choose a page",
         page_options,
-        index=current_index,
-        key="page_selector"
+        index=page_options.index(st.session_state['current_page']),
+        key="page_selector",
+        on_change=handle_page_change
     )
-
-    st.session_state['current_page'] = page
 
     # Show data source status for the profiles page
     if st.session_state.get('data') is not None and not st.session_state['data'].empty:
         st.sidebar.success(f"📊 Profiles Data: {st.session_state['data_source']}")
     st.sidebar.markdown("---")
 
-    # Page routing
-    if page == "🏠 Home":
+    # The page routing logic now depends directly on the single source of truth in session state.
+    if st.session_state['current_page'] == "🏠 Home":
         show_home_page()
-    elif page == "👥 Profiles":
+    elif st.session_state['current_page'] == "👥 Profiles":
         show_profiles(st.session_state.get('data'))
-    elif page == "🔮 Prediction":
+    elif st.session_state['current_page'] == "🔮 Prediction":
         show_prediction()
 
 if __name__ == "__main__":
