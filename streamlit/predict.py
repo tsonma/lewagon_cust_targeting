@@ -106,7 +106,7 @@ def single_client_ui(model):
 
     # Script button (only shows up if prediction has been made)
     if "last_input" in st.session_state:
-        if st.button("Generate Personalized Script"):
+        if st.button("Generate Sales Pitch"):
             df_str = st.session_state["last_input"].to_csv(index=False)
 
             system_prompt = """
@@ -114,7 +114,6 @@ def single_client_ui(model):
             specialized in investments, with a proven track record of helping clients achieve
             their financial goals while always acting in their best interest.
             You are empathetic, trustworthy, and persuasive in your communication.
-            The name of our bank is 'LeWagon'.
             """
 
             user_prompt = f"""
@@ -123,27 +122,50 @@ def single_client_ui(model):
 
             Client name: {st.session_state.get('client_name', 'N/A')}
 
-            Please generate a short personalized call script (2 paragraphs) for this client,
-            highlighting their situation and suggesting why an investment is a good fit.
-            If a client name is provided, please use it naturally in the script.
+            You are advising a financial advisor who works at an investment company that currently offers only one investment product.
+            The advisor wants to build stronger, more personal relationships with clients during consultations.
+            Provide 3 specific conversation topics that will help the advisor:
+
+            Connect personally with clients beyond just discussing the investment product
+            Understand the client's individual financial situation and goals
+            Build trust and rapport for long-term relationships
+
+            Format each topic as a concise bullet point with 1 personalized sentence that is subtle enough. Do not explicitly mention how much they have in their bank account
+            or their age. Focus on topics that any advisor can easily incorporate into their meetings, regardless of their experience level.
             """
 
+            # Add progress bar for single client script generation
+            progress_bar = st.progress(0)
+
             try:
+                # Update progress to show we're starting the API call
+                progress_bar.progress(25)
+
                 response = openai.chat.completions.create(
-                    model="gpt-4.1-mini",
+                    model="gpt-4o-mini",
                     messages=[
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt}
                     ],
-                    max_tokens=300
+                    max_tokens=300,
+                    temperature=0.7
                 )
+
                 script = response.choices[0].message.content
-                st.subheader("Personalized Script")
+
+                # Complete the progress bar
+                progress_bar.progress(100)
+
                 st.write(script)
 
+                # Remove the progress bar after completion
+                progress_bar.empty()
+
             except Exception as e:
+                progress_bar.empty()  # Remove progress bar on error
                 st.error(f"Error generating script: {e}")
 
+# ---------- UI for Multiple Clients Prediction ----------
 def bulk_csv_ui(model, threshold):
     uploaded_file = st.file_uploader("Upload a CSV file", type=["csv"])
     if uploaded_file:
@@ -227,7 +249,7 @@ def bulk_csv_ui(model, threshold):
         st.download_button(label="💾 Download Predictions", data=csv_download, file_name="predictions.csv", mime="text/csv")
 
         # Optional ChatGPT scripts generation (using filtered data)
-        if st.button("🤖 Generate Personalized Scripts"):
+        if st.button("Generate Sales Pitch"):
             data_hash = hash(str(X_filtered.index.tolist() + X_filtered.columns.tolist()))
             scripts_key = f"scripts_{data_hash}_{threshold}"
             if scripts_key not in st.session_state:
