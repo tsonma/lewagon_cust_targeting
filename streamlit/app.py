@@ -58,21 +58,22 @@ def validate_csv_structure(df: pd.DataFrame) -> tuple[bool, list]:
     return len(missing_cols) == 0, missing_cols
 
 def show_home_page():
-    # --- New: App Title with a Logo ---
-    logo_path = "streamlit/assets/investrai.png"
+    # --- Centered Logo using columns ---
+    logo_path = Path(__file__).parent / "assets" / "logo.png"
 
-    col_logo, col_title = st.columns([1, 6])
+    col_spacer_left, col_logo, col_spacer_right = st.columns([1, 4, 1])
+
     with col_logo:
-        # Check if logo exists before displaying it
         if os.path.exists(logo_path):
-            st.image(logo_path, width=100)
+            # The corrected line using the new parameter
+            st.image(str(logo_path), use_container_width=True)
         else:
-            st.warning("Logo image not found. Please save it to 'streamlit/assets/investrai.png'")
-            st.markdown("<br>", unsafe_allow_html=True)  # Add some space
+            st.warning("Logo image not found. Please save it to 'streamlit/assets/logo.png'")
 
-    with col_title:
-        st.title("InvestrAI")
-        st.markdown("<br>", unsafe_allow_html=True)  # Add some space
+    # --- Rest of the code can be kept as it is, or also centered ---
+    st.markdown("<br>", unsafe_allow_html=True)
+    #st.title("InvestrAI")
+    st.markdown("<br>", unsafe_allow_html=True)
 
     # --- New: Welcoming Message and Description ---
     st.markdown(
@@ -125,11 +126,11 @@ def show_home_page():
     # This is the section that renders the button. It should be the only place.
     if st.session_state.get('file_uploaded'):
         st.divider()
-        st.success("🎉 Data ready! Click 'Start Analysis' to proceed to the Profiles page.")
+        st.success("Data ready! Click 'Start Analysis' to proceed to the Profiles page.")
         col1, col2, col3 = st.columns([1, 1, 1])
         with col2:
-            if st.button("🚀 Start Analysis", use_container_width=True):
-                st.session_state['current_page'] = "👥 Profiles"
+            if st.button("Start Analysis", use_container_width=True):
+                st.session_state['current_page'] = "Profiles"
                 st.rerun()
     elif uploaded_file is None:
         st.info("Upload a CSV file to begin.")
@@ -141,11 +142,11 @@ def main():
     if 'data' not in st.session_state:
         st.session_state['data'] = None
     if 'current_page' not in st.session_state:
-        st.session_state['current_page'] = "🏠 Home"
+        st.session_state['current_page'] = "Home"
 
     # Sidebar navigation
     st.sidebar.header("Navigation")
-    page_options = ["🏠 Home", "👥 Profiles", "🔮 Prediction"]
+    page_options = ["Home", "Profiles", "Prediction"]
 
     # Use on_change to explicitly handle the page switch
     st.sidebar.selectbox(
@@ -162,11 +163,11 @@ def main():
     st.sidebar.markdown("---")
 
     # The page routing logic now depends directly on the single source of truth in session state.
-    if st.session_state['current_page'] == "🏠 Home":
+    if st.session_state['current_page'] == "Home":
         show_home_page()
-    elif st.session_state['current_page'] == "👥 Profiles":
+    elif st.session_state['current_page'] == "Profiles":
         show_profiles(st.session_state.get('data'))
-    elif st.session_state['current_page'] == "🔮 Prediction":
+    elif st.session_state['current_page'] == "Prediction":
         show_prediction()
 
 if __name__ == "__main__":
