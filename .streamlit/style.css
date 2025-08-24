@@ -1,7 +1,22 @@
-/* Replace the content of your .streamlit/style.css file with this */
-@import url('https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap');
+/*
+    .streamlit/style.css
+*/
 
-body, [data-testid="stAppViewContainer"] *,
+/* Import both Lato and Poppins fonts and the Material Symbols icon font */
+@import url('https://fonts.googleapis.com/css2?family=Lato:wght@400;700&family=Poppins:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,fill,grad@20..48,100..700,0..1,-50..200');
+
+/* Apply Poppins to all headings (h1, h2, etc.) */
 h1, h2, h3, h4, h5, h6 {
+    font-family: 'Poppins', sans-serif !important;
+}
+
+/* Apply Lato to all other body text and UI elements */
+body, [data-testid="stAppViewContainer"] {
     font-family: 'Lato', sans-serif !important;
+}
+
+/* Ensure icons are rendered with the correct font */
+[class*="stIcon"] {
+    font-family: 'Material Symbols Rounded', sans-serif !important;
 }
