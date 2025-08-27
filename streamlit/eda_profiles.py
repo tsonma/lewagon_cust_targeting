@@ -19,35 +19,44 @@ from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.cluster import KMeans
 
+
 # -------------------- assets --------------------
 ASSETS_DIR = Path(__file__).parent / "assets"
+
 IMAGE_MAP = {
-    "Young First-Timers":             "Young_First_Timers.jpg",
-    "Engaged Re-contacts":            "Engaged_Re_contacts.jpg",
-    "Older First-Timers":             "Older_First_Timers.jpg",
-    "Over-Contacted Non-Responders":  "Over_Contacted_Non_Responders.jpg",
+    "Young First-Timers":    "Young_First_Timers.jpg",
+    "Engaged Re-contacts":   "Engaged_Re_contacts.jpg",
+    "Older First-Timers":    "Older_First_Timers.jpg",
+    "Senior Professionals":  "Senior_Professionals.jpg",
 }
+
 PERSONA_DESC = {
-    "Young First-Timers": "Younger or new to campaigns; digital-first and curious.",
-    "Engaged Re-contacts": "Previously contacted and engaged; follow-ups work well.",
-    "Older First-Timers": "Older audience contacted for the first time; prefer clarity/trust.",
-    "Over-Contacted Non-Responders": "Fatigued by many contacts; low conversion.",
+    "Young First-Timers":   "New contacts with high housing loan rates; difficult to convert.",
+    "Engaged Re-contacts":  "Previously contacted, highly educated with top conversion rate.",
+    "Older First-Timers":   "Affluent, older clients contacted for the first time.",
+    "Senior Professionals": "Older, management-heavy profiles with decent response rate.",
 }
+
 CLUSTER_COLOR_MAP = {
-    "Young First-Timers": "#9ecae1",
-    "Older First-Timers": "#2171b5",
-    "Engaged Re-contacts": "#fbb4ae",
-    "Over-Contacted Non-Responders": "#e41a1c"
+    "Young First-Timers":   "#9ecae1",
+    "Engaged Re-contacts":  "#fbb4ae",
+    "Older First-Timers":   "#2171b5",
+    "Senior Professionals": "#a7c957",
 }
+
 CLUSTER_ORDER = [
     "Young First-Timers",
     "Engaged Re-contacts",
     "Older First-Timers",
-    "Over-Contacted Non-Responders",
+    "Senior Professionals",
 ]
 
-# Palette Outcome (réutilisée partout où l'on compare y)
-OUTCOME_COLOR_MAP = {"yes": "#66c2a5", "no": "#fc8d62"}
+# Palette Outcome (réutilisée dans les graphiques y=yes/no)
+OUTCOME_COLOR_MAP = {
+    "yes": "#66c2a5",
+    "no":  "#fc8d62",
+}
+
 
 # -------------------- helpers --------------------
 def _derive_helper_cols(df: pd.DataFrame) -> pd.DataFrame:
@@ -74,6 +83,8 @@ def _derive_helper_cols(df: pd.DataFrame) -> pd.DataFrame:
         )
     return out
 
+
+# -------------------- Pipeline KMeans (Without duration) --------------------
 @st.cache_resource(show_spinner=False)
 def _fit_kmeans_pipeline(df: pd.DataFrame):
     df = _derive_helper_cols(df)
@@ -96,6 +107,7 @@ def _fit_kmeans_pipeline(df: pd.DataFrame):
     try:
         cat_ohe = OneHotEncoder(handle_unknown="ignore", drop="if_binary", sparse_output=False)
     except TypeError:
+        # compat scikit-learn < 1.2
         cat_ohe = OneHotEncoder(handle_unknown="ignore", drop="if_binary", sparse=False)
 
     pre = ColumnTransformer(
@@ -110,7 +122,8 @@ def _fit_kmeans_pipeline(df: pd.DataFrame):
     pipe = Pipeline(steps=[("preprocessor", pre), ("clusterer", kmeans)])
     return pipe, num_features, cat_features
 
-# --- THE KEY CHANGE IS HERE ---
+
+# -------------------  Clusters Attribution -------------------
 @st.cache_data(show_spinner="Running K-Means Clustering...")
 def _assign_clusters_farah(df: pd.DataFrame) -> pd.DataFrame:
     df = _derive_helper_cols(df)
@@ -132,10 +145,14 @@ def _assign_clusters_farah(df: pd.DataFrame) -> pd.DataFrame:
         0: "Young First-Timers",
         1: "Engaged Re-contacts",
         2: "Older First-Timers",
-        3: "Over-Contacted Non-Responders",
+        3: "Senior Professionals",
     }
     df["cluster_label"] = df["cluster"].map(label_map).astype(str)
     return df
+
+# Petit rappel en UI
+st.caption("Note: Clusters generated using KMeans (k=4) excluding 'duration'.")
+
 
 # -------------------- chart builders --------------------
 def _fig_outcome(d: pd.DataFrame, title="Subscription Outcome (y)"):
@@ -145,17 +162,17 @@ def _fig_outcome(d: pd.DataFrame, title="Subscription Outcome (y)"):
     plot_df = pd.DataFrame({"y": vc.index, "percent": vc.values})
     fig = px.bar(
         plot_df, x="y", y="percent", text="percent", color="y",
-        color_discrete_map=OUTCOME_COLOR_MAP,
-        title=title
+        color_discrete_map=OUTCOME_COLOR_MAP, title=title
     )
     fig.update_traces(texttemplate="%{y:.1f}%", textposition="outside")
     fig.update_yaxes(range=[0, 100], title="Percent")
     fig.update_layout(showlegend=False)
     return fig
 
+
 def _fig_age_box(d: pd.DataFrame):
     """
-    Age en histogramme (percent) groupé par y (même palette que Outcome).
+    Age en histogramme (percent) groupé par y (palette Outcome).
     """
     if "age" not in d.columns or "y" not in d.columns:
         return go.Figure()
@@ -168,9 +185,10 @@ def _fig_age_box(d: pd.DataFrame):
     fig.update_yaxes(title="Percent")
     return fig
 
+
 def _fig_pie(d: pd.DataFrame, col: str, title: str):
     """
-    Pie générique. Si les valeurs sont yes/no, utilise la palette Outcome.
+    Pie générique. Si valeurs yes/no -> palette Outcome.
     """
     if col not in d.columns:
         return go.Figure()
@@ -178,15 +196,15 @@ def _fig_pie(d: pd.DataFrame, col: str, title: str):
     vc.columns = [col, "count"]
     fig = px.pie(
         vc, names=col, values="count",
-        color=col,
-        color_discrete_map=OUTCOME_COLOR_MAP,
+        color=col, color_discrete_map=OUTCOME_COLOR_MAP,
         hole=0.35, title=title
     )
     return fig
 
+
 def _fig_top_jobs(d: pd.DataFrame, top_n=10, color_by_y: bool = True):
     """
-    Top jobs (counts). Par défaut: split yes/no (barmode group) avec palette Outcome.
+    Top jobs (counts). Par défaut: split yes/no (barmode=group) palette Outcome.
     """
     if "job" not in d.columns:
         return go.Figure()
@@ -199,15 +217,15 @@ def _fig_top_jobs(d: pd.DataFrame, top_n=10, color_by_y: bool = True):
         g = dd.groupby(["job", "y"]).size().reset_index(name="count")
         g["job"] = pd.Categorical(g["job"], categories=top_jobs, ordered=True)
         fig = px.bar(
-            g, x="count", y="job",
-            color="y", orientation="h", barmode="group",
+            g, x="count", y="job", color="y",
+            orientation="h", barmode="group",
             color_discrete_map=OUTCOME_COLOR_MAP,
             title=f"Top {top_n} Jobs — Counts by y"
         )
         fig.update_layout(xaxis_title="Count", yaxis_title="job")
         return fig
 
-    # fallback sans y
+    # Fallback sans y
     plot_df = vc.sort_values(ascending=True).reset_index()
     plot_df.columns = ["job", "count"]
     fig = px.bar(
@@ -216,9 +234,10 @@ def _fig_top_jobs(d: pd.DataFrame, top_n=10, color_by_y: bool = True):
     )
     return fig
 
+
 def _fig_edu_percent(d: pd.DataFrame, color_by_y: bool = True):
     """
-    Education en % par niveau. Par défaut: split yes/no (somme = 100% par niveau).
+    Education en % par niveau. Si color_by_y: % par niveau (row-normalized).
     """
     if "education" not in d.columns:
         return go.Figure()
@@ -229,8 +248,8 @@ def _fig_edu_percent(d: pd.DataFrame, color_by_y: bool = True):
         g["percent"] = (g["count"] / g["total_edu"] * 100).round(1)
 
         fig = px.bar(
-            g, x="percent", y="education",
-            color="y", orientation="h", barmode="group",
+            g, x="percent", y="education", color="y",
+            orientation="h", barmode="group",
             color_discrete_map=OUTCOME_COLOR_MAP,
             title="Education — % by y (row-normalized)"
         )
@@ -238,7 +257,7 @@ def _fig_edu_percent(d: pd.DataFrame, color_by_y: bool = True):
         fig.update_yaxes(title="education")
         return fig
 
-    # fallback sans y
+    # Fallback sans y
     vc = (d["education"].value_counts(normalize=True) * 100).round(1)
     plot_df = vc.sort_values(ascending=True).reset_index()
     plot_df.columns = ["education", "percent"]
@@ -248,6 +267,7 @@ def _fig_edu_percent(d: pd.DataFrame, color_by_y: bool = True):
     )
     fig.update_xaxes(range=[0, 100], title="Percent")
     return fig
+
 
 def _fig_month(d: pd.DataFrame):
     """
@@ -281,8 +301,7 @@ def _fig_month(d: pd.DataFrame):
         month_order = [mapping[m] for m in month_order]
 
     fig = px.bar(
-        counts,
-        x="month", y="percent", color="y",
+        counts, x="month", y="percent", color="y",
         barmode="group",
         color_discrete_map=OUTCOME_COLOR_MAP,
         category_orders={"month": month_order} if month_order else None,
@@ -290,6 +309,7 @@ def _fig_month(d: pd.DataFrame):
     )
     fig.update_yaxes(title="Percent", range=[0, 100])
     return fig
+
 
 def _fig_compare_bars(dcomp: pd.DataFrame) -> go.Figure:
     if "y" not in dcomp.columns or "cluster_label" not in dcomp.columns:
@@ -299,13 +319,9 @@ def _fig_compare_bars(dcomp: pd.DataFrame) -> go.Figure:
     counts["percent"] = (100.0 * counts["count"] / totals).round(1)
 
     fig = px.bar(
-        counts,
-        x="cluster_label",
-        y="percent",
-        color="y",
+        counts, x="cluster_label", y="percent", color="y",
         category_orders={"cluster_label": CLUSTER_ORDER},
-        barmode="group",
-        text="percent",
+        barmode="group", text="percent",
         title="Yes/No distribution by cluster (%)",
         color_discrete_map=OUTCOME_COLOR_MAP
     )
@@ -313,6 +329,7 @@ def _fig_compare_bars(dcomp: pd.DataFrame) -> go.Figure:
     fig.update_yaxes(range=[0, 100], title="Percent")
     fig.update_layout(legend_title="Outcome")
     return fig
+
 
 def _fig_cluster_proportion(d: pd.DataFrame) -> go.Figure:
     if "cluster_label" not in d.columns:
@@ -322,22 +339,17 @@ def _fig_cluster_proportion(d: pd.DataFrame) -> go.Figure:
     counts["percent"] = (counts["percent"] * 100).round(1)
 
     counts["cluster_label"] = pd.Categorical(
-        counts["cluster_label"],
-        categories=CLUSTER_ORDER,
-        ordered=True
+        counts["cluster_label"], categories=CLUSTER_ORDER, ordered=True
     )
     counts = counts.sort_values("cluster_label")
 
     fig = px.pie(
-        counts,
-        names="cluster_label",
-        values="percent",
-        hole=0.35,
-        title="Overall cluster proportions (%)",
-        color="cluster_label",
-        color_discrete_map=CLUSTER_COLOR_MAP
+        counts, names="cluster_label", values="percent",
+        hole=0.35, title="Overall cluster proportions (%)",
+        color="cluster_label", color_discrete_map=CLUSTER_COLOR_MAP
     )
     return fig
+
 
 # -------------------- PUBLIC ENTRY --------------------
 def show_profiles(df: pd.DataFrame):
@@ -359,7 +371,7 @@ def show_profiles(df: pd.DataFrame):
         st.error("No data to display.")
         return
 
-    # Call the cached function here. This will be fast on subsequent runs.
+    # Build clusters (cached)
     df2 = _assign_clusters_farah(df)
     if "cluster_label" not in df2.columns:
         st.error("Could not create clusters. Please verify the dataset has the required columns.")
@@ -394,20 +406,16 @@ def show_profiles(df: pd.DataFrame):
         st.plotly_chart(_fig_age_box(dsel), use_container_width=True)
 
     with tab3:
-        # Loans — palette yes/no uniforme
         st.plotly_chart(_fig_pie(dsel, "loan", "Loan Status"), use_container_width=True)
 
     with tab4:
-        # Housing — palette yes/no uniforme
         st.plotly_chart(_fig_pie(dsel, "housing", "Housing Loan Status"), use_container_width=True)
 
     with tab5:
-        # Jobs — version yes/no uniquement (Top N contrôlable)
         top_n = st.slider("Show top N jobs", 3, 20, 10)
         st.plotly_chart(_fig_top_jobs(dsel, top_n=top_n, color_by_y=True), use_container_width=True)
 
     with tab6:
-        # Education — version yes/no uniquement (100% par niveau)
         st.plotly_chart(_fig_edu_percent(dsel, color_by_y=True), use_container_width=True)
 
     with tab7:
