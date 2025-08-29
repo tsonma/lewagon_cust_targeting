@@ -840,7 +840,7 @@ def _fig_top_lifts(lifts: pd.DataFrame, top_k=8) -> go.Figure:
         plot, x="pp_lift", y="label", orientation="h",
         color=plot["label"],  # ensures unique color per bar
         color_discrete_sequence=colors,
-        title="Top drivers (Δ yes-rate vs overall, percentage points)"
+        title="Top drivers ( yes-rate vs overall, percentage points)"
     )
 
     fig.update_layout(
@@ -882,7 +882,7 @@ def show_profiles(df: pd.DataFrame):
     # 🔴 CHANGED: add a 3rd mode
     mode = st.radio(
         "Mode",
-        ["Compare clusters", "Single cluster", "ROI / Insights"],
+        ["Compare clusters", "Single cluster", "Conversion Insights"],
         horizontal=True,
         index=0
     )
@@ -899,6 +899,7 @@ def show_profiles(df: pd.DataFrame):
 
     # ---------------- Single cluster ----------------
     if mode == "Single cluster":
+        st.subheader("Cluster Analysis")
         chosen = st.selectbox("Choose a cluster", labels, index=0)
         dsel = df2[df2["cluster_label"] == chosen].copy()
         if dsel.empty:
@@ -934,8 +935,8 @@ def show_profiles(df: pd.DataFrame):
         return
 
     # ---------------- ROI / Insights (NEW) ----------------
-    if mode == "ROI / Insights":
-        st.subheader("ROI / Insights — Why some groups perform better")
+    if mode == "Conversion Insights":
+        st.subheader("Conversion Insights")
 
         scope = st.radio("Scope", ["Overall", "By cluster"], horizontal=True, index=0)
 
