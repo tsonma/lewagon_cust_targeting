@@ -28,10 +28,6 @@ def load_model():
         model = pickle.load(file)
     return model
 
-def color_prediction(pred):
-    """Return only check or cross depending on prediction."""
-    return "✅" if pred == "Will Invest" else "❌"
-
 # ---------- UI for Single Client Prediction ----------
 def single_client_ui(model):
     st.write("### Input Client Information")
@@ -48,7 +44,7 @@ def single_client_ui(model):
 
     col1, col2 = st.columns(2)
     balance = col1.number_input("Balance", value=3000)
-    housing = col2.selectbox("Has housing loan?", ["yes", "no"])
+    housing = col2.selectbox("Housing Loan?", ["yes", "no"])
 
     with st.expander("Advanced Options"):
         col1, col2 = st.columns(2)
@@ -56,21 +52,21 @@ def single_client_ui(model):
         education = col2.selectbox("Education", ["primary", "secondary", "tertiary", "unknown"])
 
         col1, col2, col3 = st.columns(3)
-        default = col1.selectbox("Has credit default?", ["yes", "no"])
-        loan = col2.selectbox("Has personal loan?", ["yes", "no"])
-        contact = col3.selectbox("Contact communication type", ["cellular", "telephone", "unknown"])
+        default = col1.selectbox("Credit Default?", ["yes", "no"])
+        loan = col2.selectbox("Personal Loan?", ["yes", "no"])
+        contact = col3.selectbox("Contact Communication type", ["cellular", "telephone", "unknown"])
 
         col1, col2, col3 = st.columns(3)
-        month = col1.selectbox("Last contact month", [
+        month = col1.selectbox("Last Contact Month", [
             "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"
         ])
-        day = col2.number_input("Last contact day of month", min_value=1, max_value=31, value=5)
-        campaign = col3.number_input("Number of contacts during campaign", min_value=1, max_value=50, value=1)
+        day = col2.number_input("Last Contact Day of Month", min_value=1, max_value=31, value=5)
+        campaign = col3.number_input("Number of Contacts During Campaign", min_value=1, max_value=50, value=1)
 
         col1, col2, col3 = st.columns(3)
-        pdays = col1.number_input("Days passed since last contact (-1 means never)", value=-1)
-        previous = col2.number_input("Number of contacts before this campaign", min_value=0, max_value=50, value=0)
-        poutcome = col3.selectbox("Outcome of previous campaign", ["failure", "unknown", "success"])
+        pdays = col1.number_input("Days Passed Since Last Contact (-1 Means Never)", value=-1)
+        previous = col2.number_input("Number of Contacts Before This Campaign", min_value=0, max_value=50, value=0)
+        poutcome = col3.selectbox("Outcome of Previous Campaign", ["failure", "unknown", "success"])
 
     # Store inputs
     input_data = pd.DataFrame([{
@@ -165,14 +161,28 @@ def single_client_ui(model):
                 progress_bar.empty()  # Remove progress bar on error
                 st.error(f"Error generating script: {e}")
 
-# ---------- UI for Multiple Clients Prediction ----------
-def bulk_csv_ui(model, threshold):
+def bulk_csv_ui(model):
     uploaded_file = st.file_uploader("Upload a CSV file", type=["csv"])
     if uploaded_file:
-
         # Load data
         X,y = load_data(filepath=uploaded_file)
         probabilities = model.predict_proba(X)[:, 1]
+
+        # Initialize threshold in session state if not exists
+        if "threshold" not in st.session_state:
+            st.session_state.threshold = 0.00
+
+        # Add threshold slider right before Results section
+        st.write("### Filter Settings")
+        threshold = st.slider(
+            "Adjust investment threshold",
+            0.0, 0.10, st.session_state.threshold, 0.01,
+            help="Only show customers with probability above this threshold"
+        )
+
+        # Update session state
+        st.session_state.threshold = threshold
+
         predictions = ["Will Invest" if p >= threshold else "Will Not Invest" for p in probabilities]
 
         X["Prediction"] = predictions
@@ -244,7 +254,6 @@ def bulk_csv_ui(model, threshold):
 
         # Format for display
         df_display = X_filtered.copy()
-        df_display["Prediction"] = [color_prediction(pred) for pred in df_display["Prediction"]]
         df_display["Probability"] = df_display["Probability"].apply(lambda p: f"{p:.2%}")
 
         st.write("### Results")
@@ -312,13 +321,13 @@ def bulk_csv_ui(model, threshold):
             st.write("#### Top 3 Prospects")
             top_3_display = df_display.head(3)
             for i, (idx, row) in enumerate(top_3_display.iterrows()):
-                with st.expander(f"Script for {row['name']} ({row['Prediction']} - {row['Probability']})"):
+                with st.expander(f"Sales Pitch for {row['name']} - {row['Probability']})"):
                     st.write(X_filtered.loc[idx,"Script"])
 
             csv_download_with_scripts = X_filtered.to_csv(index=False).encode('utf-8')
-            st.download_button(label="💾 Download Predictions with Scripts",
+            st.download_button(label="💾 Download Predictions with Sales Pitch",
                                data=csv_download_with_scripts,
-                               file_name="all_predictions_with_scripts.csv",
+                               file_name="all_predictions_with_sales_pitch.csv",
                                mime="text/csv")
 
 # ---------- Main Prediction Page ----------
@@ -334,15 +343,7 @@ def show_prediction():
     else:
         st.title("Prediction - Multiple Clients")
 
-    # Only show threshold slider for Multiple Clients
-    threshold = None
-    if mode == "Multiple Clients":
-        threshold = st.sidebar.slider(
-            "Adjust investment threshold",
-            0.0, 0.10, 0.00, 0.01
-        )
-
     if mode == "Single Client":
         single_client_ui(model)
     else:
-        bulk_csv_ui(model, threshold)
+        bulk_csv_ui(model)
