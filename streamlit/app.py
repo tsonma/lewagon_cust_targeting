@@ -57,28 +57,37 @@ def validate_csv_structure(df: pd.DataFrame) -> tuple[bool, list]:
     missing_cols = [col for col in REQUIRED_COLUMNS if col not in df.columns]
     return len(missing_cols) == 0, missing_cols
 
+def add_sidebar_logo():
+    """Add company logo to the sidebar"""
+    logo_path = Path(__file__).parent / "assets" / "company_logo_2.png"
+
+    if os.path.exists(logo_path):
+        # Option 1: Simple logo at the top of sidebar
+        st.sidebar.image(str(logo_path), width=500)
+        st.sidebar.markdown("---")
+    else:
+        # Fallback: Company name as text
+        st.sidebar.markdown("### Your Company Name")
+        st.sidebar.markdown("---")
+
 def show_home_page():
     # --- Centered Logo using columns ---
-    logo_path = Path(__file__).parent / "assets" / "company_logo.png"
+    # logo_path = Path(__file__).parent / "assets" / "company_logo.png"
 
-    col_spacer_left, col_logo, col_spacer_right = st.columns([1, 4, 1])
+    # col_spacer_left, col_logo, col_spacer_right = st.columns([1, 4, 1])
 
-    with col_logo:
-        if os.path.exists(logo_path):
-            # Use fixed width to avoid pixelation
-            st.image(str(logo_path), width=200)
-        else:
-            st.warning("Logo image not found. Please save it to 'streamlit/assets/logo.png'")
-
+    # with col_logo:
+    #     if os.path.exists(logo_path):
+    #         # Use fixed width to avoid pixelation
+    #         st.image(str(logo_path), width=500)
+    #     else:
+    #         st.warning("Logo image not found. Please save it to 'streamlit/assets/logo.png'")
 
     # --- New: Welcoming Message and Description ---
     st.markdown(
         """
-        ###
-        Welcome to InvestrAI 👋🏻
-
+        ##
         Your AI-powered partner in helping you make better decisions and smarter predictions.
-
         """
     )
 
@@ -139,6 +148,9 @@ def main():
         st.session_state['data'] = None
     if 'current_page' not in st.session_state:
         st.session_state['current_page'] = "Home"
+
+    # Add logo to sidebar first
+    add_sidebar_logo()
 
     # Sidebar navigation
     st.sidebar.header("Navigation")
