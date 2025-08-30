@@ -235,7 +235,7 @@ def bulk_csv_ui(model):
             st.metric("Total Prospects", f"{total_customers_filtered}", delta=delta_value)
         with col2:
             st.metric(f"Probability of ≥ {desired_successes} Success{'es' if desired_successes > 1 else ''}",
-                     f"{prob_at_least_desired:.1%}")
+                     f"{prob_at_least_desired:.0%}")
 
         # ---- Filters Section (rendered here, but already applied above) ----
         col1, col2 = st.columns(2)
@@ -261,7 +261,11 @@ def bulk_csv_ui(model):
         # ---- Table Section ----
         df_display = X_filtered.copy()
         df_display["Probability"] = df_display["Probability"].apply(lambda p: f"{p:.2%}")
-        st.dataframe(df_display[["name", "phone number", "Probability"]], hide_index=True)
+        df_display_renamed = df_display[["name", "phone number", "Probability"]].rename(columns={
+            "name": "Name",
+            "phone number": "Phone Number"
+        })
+        st.dataframe(df_display_renamed, hide_index=True)
 
         # ---- Download ----
         csv_download = X_filtered[["name","phone number","age","job","marital","education","balance","housing","loan","Probability"]].to_csv(index=False).encode('utf-8')
