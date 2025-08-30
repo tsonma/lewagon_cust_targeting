@@ -47,7 +47,7 @@ def single_client_ui(model):
     ])
 
     col1, col2 = st.columns(2)
-    balance = col1.number_input("Balance", value=0)
+    balance = col1.number_input("Balance", value=3000)
     housing = col2.selectbox("Has housing loan?", ["yes", "no"])
 
     with st.expander("Advanced Options"):
@@ -147,7 +147,7 @@ def single_client_ui(model):
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt}
                     ],
-                    max_tokens=300,
+                    max_tokens=500,
                     temperature=0.7
                 )
 
@@ -193,8 +193,7 @@ def bulk_csv_ui(model, threshold):
             "How many successful investments do you want to achieve?",
             min_value=1,
             max_value=max_prospects,
-            value=min(1, max_prospects),
-            help="Select the number of successful investments you're targeting"
+            value=min(1, max_prospects)
         )
 
         # Calculate expected number of successes and probability
@@ -220,8 +219,15 @@ def bulk_csv_ui(model, threshold):
         # Display metrics
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("Total Prospects", f"{total_customers_filtered}",
-                     delta=f"-{total_customers_original - total_customers_filtered} filtered out")
+            delta_value = None
+            if total_customers_original > total_customers_filtered:
+                delta_value = f"-{total_customers_original - total_customers_filtered} filtered out"
+
+            st.metric(
+                "Total Prospects",
+                f"{total_customers_filtered}",
+                delta=delta_value
+            )
         with col2:
             st.metric(f"Probability of ≥ {desired_successes} Success{'es' if desired_successes > 1 else ''}",
                      f"{prob_at_least_desired:.1%}")

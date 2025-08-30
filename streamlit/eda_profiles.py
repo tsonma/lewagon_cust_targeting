@@ -346,7 +346,7 @@ def _fig_cluster_proportion(d: pd.DataFrame) -> go.Figure:
 
     fig = px.pie(
         counts, names="cluster_label", values="percent",
-        hole=0.35, title="Overall cluster proportions (%)",
+        hole=0.35, title="Overall profile proportions (%)",
         color="cluster_label", color_discrete_map=CLUSTER_COLOR_MAP
     )
     return fig
@@ -732,7 +732,7 @@ def _fig_compare_bars(dcomp: pd.DataFrame) -> go.Figure:
         counts, x="cluster_label", y="percent", color="y",
         category_orders={"cluster_label": CLUSTER_ORDER},
         barmode="group", text="percent",
-        title="Yes/No distribution by cluster (%)",
+        title="Yes/No distribution by profile (%)",
         color_discrete_map=OUTCOME_COLOR_MAP
     )
     fig.update_traces(texttemplate="%{y:.1f}%", textposition="outside")
@@ -869,14 +869,14 @@ def show_profiles(df: pd.DataFrame):
     # Build clusters (cached)
     df2 = _assign_clusters_farah(df)
     if "cluster_label" not in df2.columns:
-        st.error("Could not create clusters. Please verify the dataset has the required columns.")
+        st.error("Could not create profiles. Please verify the dataset has the required columns.")
         return
 
     st.divider()
     # 🔴 CHANGED: add a 3rd mode
     mode = st.radio(
-        "Mode",
-        ["Compare clusters", "Single cluster", "Conversion Insights"],
+        "Select a view",
+        ["Compare Profiles", "Single Profile", "Conversion Insights"],
         horizontal=True,
         index=0
     )
@@ -884,16 +884,16 @@ def show_profiles(df: pd.DataFrame):
     labels = sorted(df2["cluster_label"].unique().tolist())
 
     # ---------------- Compare clusters ----------------
-    if mode == "Compare clusters":
-        st.subheader("Cluster comparison")
+    if mode == "Compare Profiles":
+        st.subheader("All Profiles")
         dcomp = df2.copy()
         st.plotly_chart(_fig_cluster_proportion(dcomp), use_container_width=True)
         st.plotly_chart(_fig_compare_bars(dcomp), use_container_width=True)
         return
 
     # ---------------- Single cluster ----------------
-    if mode == "Single cluster":
-        st.subheader("Cluster Analysis")
+    if mode == "Single Profile":
+        st.subheader("Profile Analysis")
         chosen = st.selectbox("Choose a cluster", labels, index=0)
         dsel = df2[df2["cluster_label"] == chosen].copy()
         if dsel.empty:
@@ -932,7 +932,7 @@ def show_profiles(df: pd.DataFrame):
     if mode == "Conversion Insights":
         st.subheader("Conversion Insights")
 
-        scope = st.radio("Scope", ["Overall", "By cluster"], horizontal=True, index=0)
+        scope = st.radio("Select a detailed view", ["Overall", "By cluster"], horizontal=True, index=0)
 
         if scope == "Overall":
             base = df2.copy()
@@ -943,11 +943,11 @@ def show_profiles(df: pd.DataFrame):
             st.plotly_chart(_fig_top_lifts(lifts, top_k=8), use_container_width=True)
 
         else:
-            chosen = st.selectbox("Choose a cluster", labels, index=0)
+            chosen = st.selectbox("Choose a profile", labels, index=0)
             base = df2[df2["cluster_label"] == chosen].copy()
             lifts = _compute_lifts(base, cols=None, min_count=50)  # lower threshold inside cluster
             if lifts.empty:
-                st.info("Not enough data in this cluster to compute insights.")
+                st.info("Not enough data in this profile to compute insights.")
                 return
             st.plotly_chart(_fig_top_lifts(lifts, top_k=8), use_container_width=True)
 

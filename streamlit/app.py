@@ -79,9 +79,9 @@ def show_home_page():
     st.markdown(
         """
         ###
-        Welcome to InvestrAI!
+        Welcome to InvestrAI 👋🏻
 
-        Your AI-powered partner in helping you make smarter predictions and better decisions.
+        Your AI-powered partner in helping you make better decisions and smarter predictions.
 
         """
     )
@@ -89,7 +89,7 @@ def show_home_page():
     st.divider()
 
     # --- File Upload and Default Dataset Section ---
-    st.subheader("📁 Upload Dataset for Profiles")
+    st.subheader("📁 Upload a dataset to generate Profiles")
 
     # This is the original file uploader
     uploaded_file = st.file_uploader(
@@ -159,8 +159,13 @@ def main():
     )
 
     # Show data source status for the profiles page
-    if st.session_state.get('data') is not None and not st.session_state['data'].empty:
+    if (
+        st.session_state.get('data') is not None
+        and not st.session_state['data'].empty
+        and st.session_state['current_page'] != "Prediction"
+    ):
         st.sidebar.success(f"📊 Profiles Data: {st.session_state['data_source']}")
+
     st.sidebar.markdown("---")
 
     # The page routing logic now depends directly on the single source of truth in session state.
