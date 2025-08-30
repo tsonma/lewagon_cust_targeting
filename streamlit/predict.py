@@ -161,16 +161,13 @@ def single_client_ui(model):
                 progress_bar.empty()  # Remove progress bar on error
                 st.error(f"Error generating script: {e}")
 
+# ---------- UI for Multiple Client Prediction ----------
 def bulk_csv_ui(model):
     uploaded_file = st.file_uploader("Upload a CSV file", type=["csv"])
     if uploaded_file:
         # Load data
         X,y = load_data(filepath=uploaded_file)
         probabilities = model.predict_proba(X)[:, 1]
-
-        # Initialize threshold in session state if not exists
-        if "threshold" not in st.session_state:
-            st.session_state.threshold = 0.00
 
         # FIRST FILTER: Number of successful investments (moved up)
         max_prospects = len(probabilities)  # Use all customers initially for max value
@@ -181,16 +178,14 @@ def bulk_csv_ui(model):
             value=min(1, max_prospects)
         )
 
-        # SECOND FILTER: Threshold slider
+        # SECOND FILTER: Threshold slider (simplified - no session state needed)
         threshold = st.slider(
             "Adjust investment threshold",
-            0.0, 0.10, st.session_state.threshold, 0.01,
+            0.0, 0.10, 0.00, 0.01,
             help="Only show customers with probability above this threshold"
         )
 
         st.write("### Results")
-        # Update session state
-        st.session_state.threshold = threshold
 
         predictions = ["Will Invest" if p >= threshold else "Will Not Invest" for p in probabilities]
 
