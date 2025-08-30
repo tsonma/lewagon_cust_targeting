@@ -129,8 +129,7 @@ def show_home_page():
             if st.button("Start Analysis", use_container_width=True):
                 st.session_state['current_page'] = "Profiles"
                 st.rerun()
-    elif uploaded_file is None:
-        st.info("Upload a CSV file to begin.")
+
 def handle_page_change():
     st.session_state['current_page'] = st.session_state['page_selector']
 
@@ -147,7 +146,7 @@ def main():
 
     # Use on_change to explicitly handle the page switch
     st.sidebar.selectbox(
-        "Choose a page",
+        "Select Page",
         page_options,
         index=page_options.index(st.session_state['current_page']),
         key="page_selector",
