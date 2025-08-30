@@ -848,7 +848,14 @@ def _fig_top_lifts(lifts: pd.DataFrame, top_k=8) -> go.Figure:
 
 # -------------------- PUBLIC ENTRY --------------------
 def show_profiles(df: pd.DataFrame):
-    st.title("Profiles Explorer")
+    """Main profiles display function - now expects data to always be provided"""
+
+    if df is None or df.empty:
+        st.error("No data available for analysis.")
+        st.info("Please upload a dataset first.")
+        return
+
+    #st.title("Profiles Explorer")
 
     with st.expander("Show Profiles", expanded=True):
         cols = st.columns(2)
@@ -862,10 +869,6 @@ def show_profiles(df: pd.DataFrame):
                     st.info(f"Add image at: assets/{img}")
                 st.write(PERSONA_DESC.get(name, ""))
 
-    if df is None or df.empty:
-        st.error("No data to display.")
-        return
-
     # Build clusters (cached)
     df2 = _assign_clusters_farah(df)
     if "cluster_label" not in df2.columns:
@@ -873,7 +876,7 @@ def show_profiles(df: pd.DataFrame):
         return
 
     st.divider()
-    # 🔴 CHANGED: add a 3rd mode
+
     mode = st.radio(
         "Select a view",
         ["Compare Profiles", "Single Profile", "Conversion Insights"],
@@ -928,7 +931,7 @@ def show_profiles(df: pd.DataFrame):
             st.plotly_chart(_fig_month(dsel), use_container_width=True)
         return
 
-    # ---------------- ROI / Insights (NEW) ----------------
+    # ---------------- ROI / Insights ----------------
     if mode == "Conversion Insights":
         st.subheader("Conversion Insights")
 
@@ -954,9 +957,7 @@ def show_profiles(df: pd.DataFrame):
         # Short, business-first narrative
         st.markdown(
             """
-	- Green (right) = improves conversion (good signals)
-	- Orange (left) = hurts conversion (risk signals)
-
-
+            - Green (right) = improves conversion (good signals)
+            - Orange (left) = hurts conversion (risk signals)
             """
         )

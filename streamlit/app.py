@@ -71,73 +71,126 @@ def add_sidebar_logo():
         st.sidebar.markdown("---")
 
 def show_home_page():
-    # --- Centered Logo using columns ---
-    # logo_path = Path(__file__).parent / "assets" / "company_logo.png"
+    """New simplified home page with only navigation buttons"""
 
-    # col_spacer_left, col_logo, col_spacer_right = st.columns([1, 4, 1])
-
-    # with col_logo:
-    #     if os.path.exists(logo_path):
-    #         # Use fixed width to avoid pixelation
-    #         st.image(str(logo_path), width=500)
-    #     else:
-    #         st.warning("Logo image not found. Please save it to 'streamlit/assets/logo.png'")
-
-    # --- New: Welcoming Message and Description ---
+    # --- Welcome Message ---
     st.markdown(
         """
-        ##
-        Your AI-powered partner in helping you make better decisions and smarter predictions.
+        ## Welcome to your AI-powered partner
+
+        Helping you better understand your customer profiles and make better predictions.
         """
     )
 
     st.divider()
 
-    # --- File Upload and Default Dataset Section ---
-    st.subheader("📁 Upload a dataset to generate Profiles")
+    # --- Navigation Buttons Section ---
+    st.markdown("<div style='text-align: center;'><h3>Select an option</h3></div>", unsafe_allow_html=True)
 
-    # This is the original file uploader
-    uploaded_file = st.file_uploader(
-        "Choose a CSV file",
-        type=['csv'],
-        key="home_uploader",
-        help="This dataset will be used for the Profiles page."
-    )
+    col1, col2 = st.columns([1, 1])
 
-    # Original logic for processing an uploaded file
-    if uploaded_file is not None:
-        with st.spinner("Loading and validating your dataset..."):
-            df = load_uploaded_csv(uploaded_file)
-            if not df.empty:
-                is_valid, missing_cols = validate_csv_structure(df)
-                if is_valid:
-                    st.session_state['data'] = df
-                    st.session_state['data_source'] = f"Uploaded: {uploaded_file.name}"
-                    st.session_state['file_uploaded'] = True
-                    st.success(f"✅ Dataset loaded! ({len(df):,} rows, {len(df.columns)} columns)")
+    with col1:
+        # Profiles Button
+        if st.button(
+            "Customer Profiles",
+            use_container_width=True,
+            help="Analyze customer data and generate detailed profiles"
+        ):
+            st.session_state['current_page'] = "Profiles"
+            st.rerun()
 
-                    # --- RE-ADDED: Preview Dataset Section ---
-                    with st.expander("Preview Dataset"):
-                        st.dataframe(df.head())
+    with col2:
+        # Predict Button
+        if st.button(
+            "Make Predictions",
+            use_container_width=True,
+            help="Predict if customers will invest"
+        ):
+            st.session_state['current_page'] = "Prediction"
+            st.rerun()
 
+    st.divider()
+
+
+
+def show_profiles_page():
+    """Modified profiles page that starts with CSV upload"""
+
+    st.title("Customer Profiles")
+
+    # Check if analysis should be shown (both data loaded AND analysis started)
+    if (st.session_state.get('data') is not None and
+        not st.session_state['data'].empty and
+        st.session_state.get('analysis_started', False)):
+
+        # Data is loaded and analysis started, show the profiles
+        show_profiles(st.session_state.get('data'))
+
+        # Add option to upload new data
+        st.sidebar.markdown("---")
+        if st.sidebar.button("🔄 Upload New Dataset"):
+            st.session_state['data'] = None
+            st.session_state['data_source'] = None
+            st.session_state['file_uploaded'] = False
+            st.session_state['analysis_started'] = False
+            st.rerun()
+
+    else:
+        # No data loaded or analysis not started, show upload interface
+        st.markdown("Please upload a customer dataset to generate profiles and visualizations.")
+
+        st.divider()
+
+        # --- File Upload Section ---
+        st.subheader("📁 Upload Dataset")
+
+        uploaded_file = st.file_uploader(
+            "Choose a CSV file",
+            type=['csv'],
+            key="profiles_uploader",
+            help="Upload your customer dataset to generate detailed profiles and visualizations."
+        )
+
+        # Process uploaded file
+        if uploaded_file is not None:
+            with st.spinner("Loading and validating your dataset..."):
+                df = load_uploaded_csv(uploaded_file)
+                if not df.empty:
+                    is_valid, missing_cols = validate_csv_structure(df)
+                    if is_valid:
+                        st.session_state['data'] = df
+                        st.session_state['data_source'] = f"Uploaded: {uploaded_file.name}"
+                        st.session_state['file_uploaded'] = True
+                        st.success(f"✅ Dataset loaded! ({len(df):,} rows, {len(df.columns)} columns)")
+
+                        # Preview Dataset Section
+                        with st.expander("Preview Dataset"):
+                            st.dataframe(df.head())
+
+                    else:
+                        st.error("❌ Invalid CSV structure!")
+                        st.write("**Missing columns:**", missing_cols)
+                        st.info("**Required columns:** " + ", ".join(REQUIRED_COLUMNS))
+                        st.session_state['data'] = None
+                        st.session_state['file_uploaded'] = False
                 else:
-                    st.error("❌ Invalid CSV structure!")
-                    st.write("Missing columns:", missing_cols)
+                    st.error("❌ Failed to load the CSV file. Please check the file format.")
                     st.session_state['data'] = None
                     st.session_state['file_uploaded'] = False
-            else:
-                st.session_state['data'] = None
-                st.session_state['file_uploaded'] = False
 
-    # This is the section that renders the button. It should be the only place.
-    if st.session_state.get('file_uploaded'):
-        st.divider()
-        st.success("Data ready! Click 'Start Analysis' to proceed to the Profiles page.")
-        col1, col2, col3 = st.columns([1, 1, 1])
-        with col2:
-            if st.button("Start Analysis", use_container_width=True):
-                st.session_state['current_page'] = "Profiles"
-                st.rerun()
+        # Show "Start Analysis" button if data is loaded but analysis not started
+        if (st.session_state.get('file_uploaded') and
+            st.session_state.get('data') is not None and
+            not st.session_state.get('analysis_started', False)):
+
+            st.divider()
+            st.success("Data ready! Click 'Start Analysis' to proceed with profile generation.")
+
+            col1, col2, col3 = st.columns([1, 1, 1])
+            with col2:
+                if st.button("Start Analysis", use_container_width=True):
+                    st.session_state['analysis_started'] = True
+                    st.rerun()
 
 def handle_page_change():
     st.session_state['current_page'] = st.session_state['page_selector']
@@ -148,6 +201,8 @@ def main():
         st.session_state['data'] = None
     if 'current_page' not in st.session_state:
         st.session_state['current_page'] = "Home"
+    if 'analysis_started' not in st.session_state:
+        st.session_state['analysis_started'] = False
 
     # Add logo to sidebar first
     add_sidebar_logo()
@@ -169,17 +224,17 @@ def main():
     if (
         st.session_state.get('data') is not None
         and not st.session_state['data'].empty
-        and st.session_state['current_page'] != "Prediction"
+        and st.session_state['current_page'] == "Profiles"
     ):
-        st.sidebar.success(f"📊 Profiles Data: {st.session_state['data_source']}")
+        st.sidebar.success(f"Data Loaded: {st.session_state.get('data_source', 'Unknown')}")
 
     st.sidebar.markdown("---")
 
-    # The page routing logic now depends directly on the single source of truth in session state.
+    # Page routing logic
     if st.session_state['current_page'] == "Home":
         show_home_page()
     elif st.session_state['current_page'] == "Profiles":
-        show_profiles(st.session_state.get('data'))
+        show_profiles_page()
     elif st.session_state['current_page'] == "Prediction":
         show_prediction()
 
