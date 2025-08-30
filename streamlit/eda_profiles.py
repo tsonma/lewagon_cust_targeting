@@ -154,9 +154,6 @@ def _assign_clusters_farah(df: pd.DataFrame) -> pd.DataFrame:
     df["cluster_label"] = df["cluster"].map(label_map).astype(str)
     return df
 
-# Petit rappel en UI
-st.caption("Note: Clusters generated using KMeans (k=4) excluding 'duration'.")
-
 
 # -------------------- chart builders --------------------
 def _fig_outcome(d: pd.DataFrame, title="Subscription Outcome (y)"):
@@ -565,9 +562,6 @@ def _assign_clusters_farah(df: pd.DataFrame) -> pd.DataFrame:
     }
     df["cluster_label"] = df["cluster"].map(label_map).astype(str)
     return df
-
-# Petit rappel en UI
-st.caption("Note: Clusters generated using KMeans (k=4) excluding 'duration'.")
 
 
 # -------------------- chart builders --------------------

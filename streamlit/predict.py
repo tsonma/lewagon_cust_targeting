@@ -333,7 +333,7 @@ def show_prediction():
     if mode == "Multiple Clients":
         threshold = st.sidebar.slider(
             "Adjust investment threshold",
-            0.0, 0.10, 0.035, 0.01
+            0.0, 0.10, 0.00, 0.01
         )
 
     if mode == "Single Client":
