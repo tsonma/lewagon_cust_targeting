@@ -78,10 +78,11 @@ def show_home_page():
     # --- New: Welcoming Message and Description ---
     st.markdown(
         """
-        ### Welcome! 👋
-        Smarter predictions. Better decisions. Welcome to InvestrAI, your AI-powered partner in customer investment prediction.
+        ###
+        Welcome to InvestrAI!
 
-        To get started, please upload your customer dataset.
+        Your AI-powered partner in helping you make smarter predictions and better decisions.
+
         """
     )
 
@@ -95,7 +96,7 @@ def show_home_page():
         "Choose a CSV file",
         type=['csv'],
         key="home_uploader",
-        help="This dataset will be used for the Profiles and EDA pages."
+        help="This dataset will be used for the Profiles page."
     )
 
     # Original logic for processing an uploaded file
