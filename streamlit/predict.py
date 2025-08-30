@@ -32,9 +32,6 @@ def load_model():
 def single_client_ui(model):
     st.write("### Input Client Information")
 
-    # Client name input (for script personalization only)
-    client_name = st.text_input("Client Name", placeholder="Enter client's name for personalized script")
-
     col1, col2 = st.columns(2)
     age = col1.number_input("Age", min_value=18, max_value=100, value=30)
     job = col2.selectbox("Job", [
@@ -43,8 +40,8 @@ def single_client_ui(model):
     ])
 
     col1, col2 = st.columns(2)
-    balance = col1.number_input("Balance", value=3000)
-    housing = col2.selectbox("Housing Loan?", ["yes", "no"])
+    balance = col1.number_input("Balance", value=5000)
+    housing = col2.selectbox("Housing Loan?", ["no", "yes"])
 
     with st.expander("Advanced Options"):
         col1, col2 = st.columns(2)
@@ -53,7 +50,7 @@ def single_client_ui(model):
 
         col1, col2, col3 = st.columns(3)
         default = col1.selectbox("Credit Default?", ["yes", "no"])
-        loan = col2.selectbox("Personal Loan?", ["yes", "no"])
+        loan = col2.selectbox("Personal Loan?", ["no", "yes"])
         contact = col3.selectbox("Contact Communication type", ["cellular", "telephone", "unknown"])
 
         col1, col2, col3 = st.columns(3)
@@ -94,7 +91,6 @@ def single_client_ui(model):
         # Store input data, prediction result, AND client name in session_state
         st.session_state["last_input"] = input_data
         st.session_state["last_prediction"] = proba
-        st.session_state["client_name"] = client_name
 
     # Display prediction result if it exists (even after rerun)
     if "last_prediction" in st.session_state:
@@ -105,29 +101,52 @@ def single_client_ui(model):
         if st.button("Generate Sales Pitch"):
             df_str = st.session_state["last_input"].to_csv(index=False)
 
+            # Extract key financial indicators for context
+            client_balance = st.session_state["last_input"]["balance"].iloc[0]
+            has_housing_loan = st.session_state["last_input"]["housing"].iloc[0] == "yes"
+            has_personal_loan = st.session_state["last_input"]["loan"].iloc[0] == "yes"
+            client_job = st.session_state["last_input"]["job"].iloc[0]
+
+            # Create financial context for the prompt
+            financial_context = f"""
+            Financial Context:
+            - Current account balance: {'High' if client_balance > 10000 else 'Moderate' if client_balance > 1000 else 'Limited'} liquidity position
+            - Housing loan status: {'Currently has housing loan obligations' if has_housing_loan else 'No current housing loan'}
+            - Personal loan status: {'Has personal loan commitments' if has_personal_loan else 'No personal loan obligations'}
+            - Employment: {client_job}
+            """
+
             system_prompt = """
             You are a highly experienced and successful bank representative,
             specialized in investments, with a proven track record of helping clients achieve
             their financial goals while always acting in their best interest.
             You are empathetic, trustworthy, and persuasive in your communication.
+
+            Always consider the client's current financial obligations and liquidity position
+            when providing advice. Be sensitive to their debt situation and cash flow constraints.
             """
 
             user_prompt = f"""
             Here is the customer data:
             {df_str}
 
-            Client name: {st.session_state.get('client_name', 'N/A')}
+            {financial_context}
 
             You are advising a financial advisor who works at an investment company that currently offers only one investment product.
-            The advisor wants to build stronger, more personal relationships with clients during consultations.
-            Provide 3 specific conversation topics that will help the advisor:
+            The advisor wants to build stronger, more personal relationships with clients during consultations. Do not talk about marital status or if they have kids.
+            Please mention the field of work that client is in.
 
-            Connect personally with clients beyond just discussing the investment product
-            Understand the client's individual financial situation and goals
-            Build trust and rapport for long-term relationships
+            Based on the client's financial situation (including their liquidity position and loan obligations),
+            provide 3 specific conversation topics that will help the advisor:
 
-            Format each topic as a concise bullet point with 1 personalized sentence that is subtle enough. Do not explicitly mention how much they have in their bank account
-            or their age. Focus on topics that any advisor can easily incorporate into their meetings, regardless of their experience level.
+            1. Connect personally with clients beyond just discussing the investment product
+            2. Understand the client's individual financial situation and goals, considering their current financial commitments
+            3. Build trust and rapport for long-term relationships while being sensitive to their financial constraints
+
+            Format each topic as a concise bullet point with 1-2 personalized sentences.
+            Be tactful and avoid directly mentioning specific account balances or loan amounts.
+            Consider whether the client may have limited disposable income due to loan obligations or should focus on building emergency funds first.
+            Focus on topics that any advisor can easily incorporate into their meetings, regardless of their experience level.
             """
 
             # Add progress bar for single client script generation
@@ -138,12 +157,12 @@ def single_client_ui(model):
                 progress_bar.progress(25)
 
                 response = openai.chat.completions.create(
-                    model="gpt-4o-mini",
+                    model="gpt-4.1",
                     messages=[
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt}
                     ],
-                    max_tokens=500,
+                    max_tokens=600,
                     temperature=0.7
                 )
 
@@ -166,90 +185,92 @@ def bulk_csv_ui(model):
     uploaded_file = st.file_uploader("Upload a CSV file", type=["csv"])
     if uploaded_file:
         # Load data
-        X,y = load_data(filepath=uploaded_file)
+        X, y = load_data(filepath=uploaded_file)
         probabilities = model.predict_proba(X)[:, 1]
 
-        # FIRST FILTER: Number of successful investments (moved up)
-        max_prospects = len(probabilities)  # Use all customers initially for max value
-        desired_successes = st.number_input(
-            "How many successful investments do you want to achieve?",
-            min_value=1,
-            max_value=max_prospects,
-            value=min(1, max_prospects)
-        )
+        max_prospects = len(probabilities)
 
-        # SECOND FILTER: Threshold slider (simplified - no session state needed)
-        threshold = st.slider(
-            "Adjust investment threshold",
-            0.0, 0.10, 0.00, 0.01,
-            help="Only show customers with probability above this threshold"
-        )
+        # ---- Capture Filters (logic first) ----
+        threshold_percent = st.session_state.get("threshold_percent", 0)
+        desired_successes = st.session_state.get("desired_successes", min(1, max_prospects))
 
-        st.write("### Results")
+        # Convert % back to decimal
+        threshold = threshold_percent / 100
 
+        # ---- Apply filters based on threshold ----
         predictions = ["Will Invest" if p >= threshold else "Will Not Invest" for p in probabilities]
-
         X["Prediction"] = predictions
         X["Probability"] = probabilities
 
-        # FILTER CUSTOMERS BASED ON THRESHOLD
         total_customers_original = len(X)
         mask_above_threshold = X["Probability"] >= threshold
         X_filtered = X[mask_above_threshold].copy()
         probabilities_filtered = probabilities[mask_above_threshold]
-
-        # Sort descending by probability
         X_filtered.sort_values(by="Probability", ascending=False, inplace=True)
 
-        # Calculate expected number of successes and probability
+        # ---- Calculate Metrics ----
         if len(probabilities_filtered) > 0:
-            expected_successes = sum(probabilities_filtered)
-            avg_prob = sum(probabilities_filtered) / len(probabilities_filtered)
+            avg_probability = probabilities_filtered.mean()
             n_prospects = len(probabilities_filtered)
-
             from math import comb
             prob_at_least_desired = sum(
-                comb(n_prospects, k) * (avg_prob ** k) * ((1 - avg_prob) ** (n_prospects - k))
+                comb(n_prospects, k) * (avg_probability ** k) * ((1 - avg_probability) ** (n_prospects - k))
                 for k in range(desired_successes, n_prospects + 1)
             )
         else:
+            avg_probability = 0
             prob_at_least_desired = 0
-            expected_successes = 0
 
-        # Additional metrics
         total_customers_filtered = len(X_filtered)
-        predicted_investors = len(X_filtered)
-        avg_probability = probabilities_filtered.mean() if len(probabilities_filtered) > 0 else 0
 
-        # Display metrics
+        # ---- Results Header ----
+        st.write("### Results")
+
+        # ---- Metrics Section ----
         col1, col2, col3 = st.columns(3)
         with col1:
             delta_value = None
             if total_customers_original > total_customers_filtered:
                 delta_value = f"-{total_customers_original - total_customers_filtered} filtered out"
-
-            st.metric(
-                "Total Prospects",
-                f"{total_customers_filtered}",
-                delta=delta_value
-            )
+            st.metric("Total Prospects", f"{total_customers_filtered}", delta=delta_value)
         with col2:
             st.metric(f"Probability of ≥ {desired_successes} Success{'es' if desired_successes > 1 else ''}",
                      f"{prob_at_least_desired:.1%}")
         with col3:
             st.metric("Average Probability", f"{avg_probability:.1%}")
 
-        # Format for display
+        # ---- Filters Section (rendered here, but already applied above) ----
+        col1, col2 = st.columns(2)
+        with col1:
+            threshold_percent = st.number_input(
+                "Probability Threshold (%)",
+                min_value=0,
+                max_value=20,
+                value=threshold_percent,
+                step=1,
+                help="Enter probability threshold as a percentage",
+                key="threshold_percent"
+            )
+            threshold = threshold_percent / 100
+        with col2:
+            desired_successes = st.number_input(
+                "Desired # of Success",
+                min_value=1,
+                max_value=max_prospects,
+                value=desired_successes,
+                key="desired_successes"
+            )
+
+        # ---- Table Section ----
         df_display = X_filtered.copy()
         df_display["Probability"] = df_display["Probability"].apply(lambda p: f"{p:.2%}")
-
         st.dataframe(df_display[["name", "phone number", "Probability"]], hide_index=True)
 
-        # Download button (using filtered data)
+        # ---- Download ----
         csv_download = X_filtered[["name","phone number","age","job","marital","education","balance","housing","loan","Probability"]].to_csv(index=False).encode('utf-8')
         st.download_button(label="💾 Download Predictions", data=csv_download, file_name="predictions.csv", mime="text/csv")
 
-        # Optional ChatGPT scripts generation (using filtered data)
+        # ---- Sales Pitch Generation ----
         if st.button("Generate Sales Pitch"):
             data_hash = hash(str(X_filtered.index.tolist() + X_filtered.columns.tolist()))
             scripts_key = f"scripts_{data_hash}_{threshold}"
@@ -258,28 +279,29 @@ def bulk_csv_ui(model):
                 scripts = []
 
                 system_prompt = """
-                You are a friendly and professional bank representative from 'LeWagon',
-                specialized in investments, with a genuine desire to help clients achieve
-                their financial goals. You are empathetic, trustworthy, and warm in your communication.
-                Use light, friendly humor that's appropriate and respectful - think gentle wit rather than
-                anything that could be perceived as making fun of the customer. Keep the tone positive,
-                encouraging, and supportive throughout.
+                You are a highly experienced and successful bank representative,
+                specialized in investments, with a proven track record of helping clients achieve
+                their financial goals while always acting in their best interest.
+                You are empathetic, trustworthy, and persuasive in your communication.
                 """
 
                 progress_bar = st.progress(0)
                 for i, (idx, row) in enumerate(X_filtered.iterrows()):
-                    customer_data = row[["age","job","marital","education","housing","loan"]].to_dict()
-                    customer_str = ", ".join([f"{k}: {v}" for k,v in customer_data.items()])
-                    user_prompt = f"""
-                    Here is the customer data for {row['name']}:
-                    {customer_str}
+                    client_balance = row["balance"]
+                    has_housing_loan = row["housing"] == "yes"
+                    has_personal_loan = row["loan"] == "yes"
+                    client_job = row["job"]
+                    client_name = row["name"]
 
-                    Please generate a short personalized call script (2 paragraphs) for this client,
-                    highlighting their situation and suggesting why an investment opportunity might be beneficial for them.
-                    Use gentle, friendly humor that's warm and respectful.
-                    Use the customer's name: {row['name']}.
-                    IMPORTANT: Do not mention account balances, specific dollar amounts, or financial details.
+                    financial_context = f"""
+                    Financial Context for {client_name}:
+                    - Liquidity: {'High' if client_balance > 10000 else 'Moderate' if client_balance > 1000 else 'Limited'}
+                    - Housing loan: {'Yes' if has_housing_loan else 'No'}
+                    - Personal loan: {'Yes' if has_personal_loan else 'No'}
+                    - Employment: {client_job}
                     """
+
+                    user_prompt = f"Here is the customer data for {client_name}:\n{financial_context}\nProvide 3 bullet points for conversation topics."
 
                     try:
                         response = openai.chat.completions.create(
@@ -288,7 +310,7 @@ def bulk_csv_ui(model):
                                 {"role": "system", "content": system_prompt},
                                 {"role": "user", "content": user_prompt}
                             ],
-                            max_tokens=300,
+                            max_tokens=600,
                             temperature=0.7
                         )
                         scripts.append(response.choices[0].message.content)
@@ -315,6 +337,7 @@ def bulk_csv_ui(model):
                                data=csv_download_with_scripts,
                                file_name="all_predictions_with_sales_pitch.csv",
                                mime="text/csv")
+
 # ---------- Main Prediction Page ----------
 def show_prediction():
     model = load_model()
