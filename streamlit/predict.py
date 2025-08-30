@@ -172,14 +172,23 @@ def bulk_csv_ui(model):
         if "threshold" not in st.session_state:
             st.session_state.threshold = 0.00
 
-        # Add threshold slider right before Results section
-        st.write("### Filter Settings")
+        # FIRST FILTER: Number of successful investments (moved up)
+        max_prospects = len(probabilities)  # Use all customers initially for max value
+        desired_successes = st.number_input(
+            "How many successful investments do you want to achieve?",
+            min_value=1,
+            max_value=max_prospects,
+            value=min(1, max_prospects)
+        )
+
+        # SECOND FILTER: Threshold slider
         threshold = st.slider(
             "Adjust investment threshold",
             0.0, 0.10, st.session_state.threshold, 0.01,
             help="Only show customers with probability above this threshold"
         )
 
+        st.write("### Results")
         # Update session state
         st.session_state.threshold = threshold
 
@@ -196,15 +205,6 @@ def bulk_csv_ui(model):
 
         # Sort descending by probability
         X_filtered.sort_values(by="Probability", ascending=False, inplace=True)
-
-        # User input for desired number of successes
-        max_prospects = len(probabilities_filtered) if len(probabilities_filtered) > 0 else 1
-        desired_successes = st.number_input(
-            "How many successful investments do you want to achieve?",
-            min_value=1,
-            max_value=max_prospects,
-            value=min(1, max_prospects)
-        )
 
         # Calculate expected number of successes and probability
         if len(probabilities_filtered) > 0:
@@ -244,19 +244,10 @@ def bulk_csv_ui(model):
         with col3:
             st.metric("Average Probability", f"{avg_probability:.1%}")
 
-        # Show threshold info
-        st.info(f"📊 Showing only customers with probability ≥ {threshold:.1%} | "
-                f"Filtered out: {total_customers_original - total_customers_filtered} customers")
-
-        if len(X_filtered) == 0:
-            st.warning(f"⚠️ No customers meet the threshold of {threshold:.1%}. Try lowering the threshold.")
-            return
-
         # Format for display
         df_display = X_filtered.copy()
         df_display["Probability"] = df_display["Probability"].apply(lambda p: f"{p:.2%}")
 
-        st.write("### Results")
         st.dataframe(df_display[["name", "phone number", "Probability"]], hide_index=True)
 
         # Download button (using filtered data)
@@ -329,7 +320,6 @@ def bulk_csv_ui(model):
                                data=csv_download_with_scripts,
                                file_name="all_predictions_with_sales_pitch.csv",
                                mime="text/csv")
-
 # ---------- Main Prediction Page ----------
 def show_prediction():
     model = load_model()
