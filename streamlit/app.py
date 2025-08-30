@@ -59,21 +59,17 @@ def validate_csv_structure(df: pd.DataFrame) -> tuple[bool, list]:
 
 def show_home_page():
     # --- Centered Logo using columns ---
-    logo_path = Path(__file__).parent / "assets" / "logo.png"
+    logo_path = Path(__file__).parent / "assets" / "company_logo.png"
 
     col_spacer_left, col_logo, col_spacer_right = st.columns([1, 4, 1])
 
     with col_logo:
         if os.path.exists(logo_path):
-            # The corrected line using the new parameter
-            st.image(str(logo_path), use_container_width=True)
+            # Use fixed width to avoid pixelation
+            st.image(str(logo_path), width=200)
         else:
             st.warning("Logo image not found. Please save it to 'streamlit/assets/logo.png'")
 
-    # --- Rest of the code can be kept as it is, or also centered ---
-    st.markdown("<br>", unsafe_allow_html=True)
-    #st.title("InvestrAI")
-    st.markdown("<br>", unsafe_allow_html=True)
 
     # --- New: Welcoming Message and Description ---
     st.markdown(
