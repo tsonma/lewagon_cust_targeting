@@ -227,7 +227,7 @@ def bulk_csv_ui(model):
         st.write("### Results")
 
         # ---- Metrics Section ----
-        col1, col2, col3 = st.columns(3)
+        col1, col2 = st.columns(2)
         with col1:
             delta_value = None
             if total_customers_original > total_customers_filtered:
@@ -236,8 +236,6 @@ def bulk_csv_ui(model):
         with col2:
             st.metric(f"Probability of ≥ {desired_successes} Success{'es' if desired_successes > 1 else ''}",
                      f"{prob_at_least_desired:.1%}")
-        with col3:
-            st.metric("Average Probability", f"{avg_probability:.1%}")
 
         # ---- Filters Section (rendered here, but already applied above) ----
         col1, col2 = st.columns(2)
@@ -248,7 +246,6 @@ def bulk_csv_ui(model):
                 max_value=20,
                 value=threshold_percent,
                 step=1,
-                help="Enter probability threshold as a percentage",
                 key="threshold_percent"
             )
             threshold = threshold_percent / 100
