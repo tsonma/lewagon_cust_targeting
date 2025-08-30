@@ -326,7 +326,7 @@ def show_prediction():
     model = load_model()
 
     # Sidebar selection
-    mode = st.sidebar.selectbox("Select Mode", ["Single Client", "Multiple Clients"])
+    mode = st.sidebar.selectbox("Select Prediction Type", ["Single Client", "Multiple Clients"])
 
     # Dynamic title based on selected mode
     if mode == "Single Client":
