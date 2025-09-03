@@ -92,9 +92,21 @@ def single_client_ui(model):
         st.session_state["last_input"] = input_data
         st.session_state["last_prediction"] = proba
 
+
     # Display prediction result if it exists (even after rerun)
     if "last_prediction" in st.session_state:
-        st.info(f"Probability of Investing: {st.session_state['last_prediction']:.2%}")
+        prob = st.session_state['last_prediction']
+
+        st.markdown("### Investment Probability")
+
+        col1, col2 = st.columns([1, 1])
+
+        with col1:
+            st.metric(
+                label="",
+                value=f"{prob:.2%}",
+                delta=None
+            )
 
     # Script button (only shows up if prediction has been made)
     if "last_input" in st.session_state:
@@ -276,7 +288,7 @@ def bulk_csv_ui(model):
             data_hash = hash(str(X_filtered.index.tolist() + X_filtered.columns.tolist()))
             scripts_key = f"scripts_{data_hash}_{threshold}"
             if scripts_key not in st.session_state:
-                st.write("### Generating Personalized Scripts...")
+                st.write("### Generating Personalized Sales Scripts...")
                 scripts = []
 
                 system_prompt = """
