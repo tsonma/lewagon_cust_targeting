@@ -194,7 +194,7 @@ def single_client_ui(model):
 
 # ---------- UI for Multiple Client Prediction ----------
 def bulk_csv_ui(model):
-    uploaded_file = st.file_uploader("Upload a CSV file", type=["csv"])
+    uploaded_file = st.file_uploader("", type=["csv"])
     if uploaded_file:
         # Load data
         X, y = load_data(filepath=uploaded_file)
