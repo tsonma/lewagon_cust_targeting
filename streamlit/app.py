@@ -142,13 +142,12 @@ def show_profiles_page():
         st.divider()
 
         # --- File Upload Section ---
-        st.subheader("📁 Upload Dataset")
+        st.subheader("Upload Dataset")
 
         uploaded_file = st.file_uploader(
-            "Choose a CSV file",
+            "",
             type=['csv'],
             key="profiles_uploader",
-            help="Upload your customer dataset to generate detailed profiles and visualizations."
         )
 
         # Process uploaded file
